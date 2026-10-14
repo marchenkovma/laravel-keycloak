@@ -10,7 +10,7 @@ use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 use Workbench\App\Models\User;
 
 describe('login', function () {
-    it('отправляет на authorize-эндпоинт Keycloak с PKCE', function () {
+    it('redirects to the Keycloak authorize endpoint with PKCE', function () {
         $location = $this->get(route('auth.login'))->assertRedirect()->headers->get('Location');
 
         expect($location)
@@ -22,7 +22,7 @@ describe('login', function () {
             ->toContain('%2Fauth%2Fcallback');
     });
 
-    it('bypass-режим логинит фейкового пользователя с ролью из конфига', function () {
+    it('bypass mode signs in a fake user with the role from the config', function () {
         config(['keycloak.web.bypass' => true, 'keycloak.web.bypass_role' => 'user']);
 
         $this->get(route('auth.login'))->assertRedirect(route('home'));
@@ -34,7 +34,7 @@ describe('login', function () {
             ->and(User::sole()->name)->toBe(__('keycloak::messages.bypass_name'));
     });
 
-    it('bypass с пустой bypass_role не даёт роли приложения: keycloak.role отвечает 403', function () {
+    it('bypass with an empty bypass_role grants no application role: keycloak.role answers 403', function () {
         config(['keycloak.web.bypass' => true, 'keycloak.web.bypass_role' => '']);
 
         $this->get(route('auth.login'))->assertRedirect(route('home'));
@@ -44,7 +44,7 @@ describe('login', function () {
         $this->get('/any-role')->assertForbidden();
     });
 
-    it('bypass игнорируется в production', function () {
+    it('bypass is ignored in production', function () {
         config(['keycloak.web.bypass' => true]);
         app()->detectEnvironment(fn () => 'production');
 
@@ -62,7 +62,7 @@ describe('login', function () {
 });
 
 describe('callback', function () {
-    it('создаёт пользователя, кладёт роль и id_token в сессию и ведёт на главную', function () {
+    it('creates the user, stores the role and id_token in the session and redirects home', function () {
         fakeKeycloakUser(groups: ['/apps/employees/user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
@@ -78,7 +78,7 @@ describe('callback', function () {
             ->and($user->last_login_at)->not->toBeNull();
     });
 
-    it('повторный вход обновляет пользователя, а не создаёт нового', function () {
+    it('a repeated login updates the user instead of creating a new one', function () {
         $old = new User;
         $old->forceFill(['username' => 'ivanov', 'name' => 'Старое Имя', 'email' => 'old@example.com'])->save();
         fakeKeycloakUser(groups: ['/apps/employees/user']);
@@ -89,7 +89,7 @@ describe('callback', function () {
             ->and(User::sole()->email)->toBe('ivanov@example.com');
     });
 
-    it('ведёт на intended-адрес, если гость шёл на закрытую страницу', function () {
+    it('redirects to the intended URL when the guest came from a protected page', function () {
         fakeKeycloakUser(groups: ['/apps/employees/user']);
 
         $this->withSession(['url.intended' => url('/any-role')])
@@ -97,7 +97,7 @@ describe('callback', function () {
             ->assertRedirect(url('/any-role'));
     });
 
-    it('роль по группе: первая совпавшая по приоритету', function () {
+    it('role by group: the first match by priority', function () {
         fakeKeycloakUser(groups: ['/apps/employees/user', '/Administrators']);
 
         $this->get(route('auth.callback').'?code=x&state=y');
@@ -105,7 +105,7 @@ describe('callback', function () {
         expect(session('keycloak.role'))->toBe('admin');
     });
 
-    it('роль по роли клиента (claim roles)', function () {
+    it('role by client role (claim roles)', function () {
         fakeKeycloakUser(roles: ['admin']);
 
         $this->get(route('auth.callback').'?code=x&state=y');
@@ -113,7 +113,7 @@ describe('callback', function () {
         expect(session('keycloak.role'))->toBe('admin');
     });
 
-    it('без групп и ролей приложения 403 с текстом из переводов, пользователь не создан', function () {
+    it('without application groups and roles: 403 with the translated text, no user created', function () {
         fakeKeycloakUser(groups: ['/some/other/group'], roles: ['user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')
@@ -124,14 +124,14 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
-    it('роль, которой нет в конфиге, входа не даёт (portguard: только admin)', function () {
+    it('a role missing from the config grants no access (portguard: admin only)', function () {
         config(['keycloak.web.roles' => ['admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']]]]);
         fakeKeycloakUser(groups: ['/apps/employees/user'], roles: ['user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertForbidden();
     });
 
-    it('устаревший state ведёт на on_failure с auth_notice, а не 500', function () {
+    it('a stale state redirects to on_failure with auth_notice instead of 500', function () {
         config(['keycloak.web.redirects.on_failure' => 'welcome']);
         staleKeycloakState();
 
@@ -140,14 +140,14 @@ describe('callback', function () {
             ->assertSessionHas('auth_notice', 'session_expired');
     });
 
-    it('устаревший state без on_failure ведёт на after_logout', function () {
+    it('a stale state without on_failure redirects to after_logout', function () {
         config(['keycloak.web.redirects.after_logout' => 'welcome']);
         staleKeycloakState();
 
         $this->get(route('auth.callback').'?state=old&code=x')->assertRedirect(route('welcome'));
     });
 
-    it('Keycloak вернул error вместо code: on_failure с auth_notice, Socialite не вызывается', function () {
+    it('Keycloak returned error instead of code: on_failure with auth_notice, Socialite is not called', function () {
         config(['keycloak.web.redirects.on_failure' => 'welcome']);
         Socialite::shouldReceive('driver')->never();
 
@@ -158,7 +158,7 @@ describe('callback', function () {
         $this->assertGuest();
     });
 
-    it('callback без code ведёт на after_logout, а не 500', function () {
+    it('a callback without code redirects to after_logout instead of 500', function () {
         Socialite::shouldReceive('driver')->never();
 
         $this->get(route('auth.callback').'?state=y')
@@ -166,7 +166,7 @@ describe('callback', function () {
             ->assertSessionHas('auth_notice', 'login_failed');
     });
 
-    it('без preferred_username входа нет: иначе все пользователи слились бы в одну запись', function () {
+    it('no login without preferred_username: otherwise all users would merge into one record', function () {
         fakeKeycloakUser(groups: ['/apps/employees/user'], nickname: null);
         $this->withoutExceptionHandling();
 
@@ -177,7 +177,7 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
-    it('не строки в claims groups и roles пропускаются, а не роняют вход', function () {
+    it('non-string values in the groups and roles claims are skipped instead of breaking the login', function () {
         fakeKeycloakUser(groups: [['nested' => 'object'], 42, '/apps/employees/user'], roles: [null]);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
@@ -185,7 +185,7 @@ describe('callback', function () {
         expect(session('keycloak.role'))->toBe('user');
     });
 
-    it('пользователя создаёт реализация проекта, если она подменена', function () {
+    it('the project implementation creates the user when it is bound', function () {
         app()->bind(ResolvesKeycloakUser::class, fn () => new class implements ResolvesKeycloakUser
         {
             public function resolve(Laravel\Socialite\Contracts\User $user): Authenticatable
@@ -207,7 +207,7 @@ describe('callback', function () {
 });
 
 describe('logout', function () {
-    it('чистит сессию и уводит на end_session Keycloak с id_token_hint', function () {
+    it('clears the session and redirects to the Keycloak end_session endpoint with id_token_hint', function () {
         $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->post(route('auth.logout'));
 
         $this->assertGuest();
@@ -219,7 +219,7 @@ describe('logout', function () {
             ->toContain('post_logout_redirect_uri='.urlencode(route('home')));
     });
 
-    it('Inertia-logout получает 409 с X-Inertia-Location: иначе XHR упрётся в CORS', function () {
+    it('an Inertia logout gets 409 with X-Inertia-Location: otherwise the XHR would hit CORS', function () {
         $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'user')
             ->post(route('auth.logout'), [], ['X-Inertia' => 'true'])
             ->assertStatus(409);
@@ -230,7 +230,7 @@ describe('logout', function () {
             ->toContain('id_token_hint=fake-id-token');
     });
 
-    it('после выхода ведёт на after_logout из конфига', function () {
+    it('redirects to after_logout from the config after logout', function () {
         config(['keycloak.web.redirects.after_logout' => 'welcome']);
 
         $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->post(route('auth.logout'));
@@ -239,7 +239,7 @@ describe('logout', function () {
             ->toContain('post_logout_redirect_uri='.urlencode(route('welcome')));
     });
 
-    it('без id_token (bypass) ведёт сразу на after_logout мимо Keycloak', function () {
+    it('without id_token (bypass) redirects straight to after_logout, skipping Keycloak', function () {
         $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->withSession(['keycloak' => ['role' => 'admin', 'id_token' => null]])
             ->post(route('auth.logout'))
             ->assertRedirect(route('home'))
@@ -249,8 +249,8 @@ describe('logout', function () {
     });
 });
 
-describe('роль в сессии', function () {
-    it('Keycloak::role и hasRole читают роль из сессии', function () {
+describe('role in the session', function () {
+    it('Keycloak::role and hasRole read the role from the session', function () {
         $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->get('/');
 
         expect(Keycloak::role())->toBe('admin')
@@ -259,22 +259,22 @@ describe('роль в сессии', function () {
             ->and(Keycloak::hasRole('user'))->toBeFalse();
     });
 
-    it('без входа роли нет', function () {
+    it('no role without login', function () {
         expect(Keycloak::role())->toBeNull()
             ->and(Keycloak::hasRole('admin'))->toBeFalse();
     });
 
-    it('keycloak.role без аргументов пускает любую роль приложения', function () {
+    it('keycloak.role without arguments allows any application role', function () {
         $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->get('/any-role')->assertOk();
     });
 
-    it('keycloak.role без роли в сессии отвечает 403', function () {
+    it('keycloak.role without a role in the session answers 403', function () {
         $this->actingAs(keycloakTestUser())->get('/any-role')
             ->assertForbidden()
             ->assertSee(__('keycloak::messages.denied'));
     });
 
-    it('keycloak.role:admin пускает admin и не пускает user', function () {
+    it('keycloak.role:admin allows admin and rejects user', function () {
         $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->get('/admin-only')->assertOk();
 
         app('auth')->forgetGuards();
@@ -283,8 +283,8 @@ describe('роль в сессии', function () {
     });
 });
 
-describe('маршруты', function () {
-    it('регистрируются с именами auth.* под префиксом из конфига', function () {
+describe('routes', function () {
+    it('are registered as auth.* under the prefix from the config', function () {
         expect(route('auth.login', absolute: false))->toBe('/auth/login')
             ->and(route('auth.callback', absolute: false))->toBe('/auth/callback')
             ->and(route('auth.logout', absolute: false))->toBe('/auth/logout')

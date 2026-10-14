@@ -60,13 +60,13 @@ function jwksRequests(): int
     return Http::recorded(fn (HttpRequest $request) => $request->url() === KEYCLOAK_TEST_JWKS_URL)->count();
 }
 
-it('пускает токен разрешённого клиента, пользователь KeycloakClient с azp', function () {
+it('allows a token of a permitted client, the user is KeycloakClient with azp', function () {
     ping(signedToken($this->key))
         ->assertOk()
         ->assertJson(['class' => KeycloakClient::class, 'id' => 'portguard-api']);
 });
 
-it('KeycloakClient отдаёт claims, роли resource_access и scope', function () {
+it('KeycloakClient exposes claims, resource_access roles and scope', function () {
     Route::get('api/client', function (Request $request) {
         /** @var KeycloakClient $client */
         $client = $request->user();
@@ -84,22 +84,22 @@ it('KeycloakClient отдаёт claims, роли resource_access и scope', func
         ->assertExactJson(['azp' => 'portguard-api', 'role' => true, 'foreign_role' => false, 'scope' => true, 'foreign_scope' => false]);
 });
 
-it('принимает aud строкой', function () {
+it('accepts aud as a string', function () {
     ping(signedToken($this->key, ['aud' => 'employee-service']))->assertOk();
 });
 
-it('берёт iss из api.issuer, если задан: публичный адрес отличается от base_url', function () {
+it('takes iss from api.issuer when set: the public address differs from base_url', function () {
     config(['keycloak.api.issuer' => 'https://sso.example.com/realms/corp']);
 
     ping(signedToken($this->key))->assertUnauthorized();
     ping(signedToken($this->key, ['iss' => 'https://sso.example.com/realms/corp']))->assertOk();
 });
 
-it('пускает в пределах leeway по exp', function () {
+it('allows exp within the leeway', function () {
     ping(signedToken($this->key, ['exp' => time() - 10]))->assertOk();
 });
 
-it('отказывает (401)', function (string $jwt) {
+it('refuses (401)', function (string $jwt) {
     Log::spy();
 
     ping($jwt)->assertUnauthorized();
@@ -110,15 +110,15 @@ it('отказывает (401)', function (string $jwt) {
         && is_string($context['reason'])
         && ! str_contains((string) json_encode($context), $jwt));
 })->with([
-    'чужая подпись' => fn () => signedToken(['kid' => 'k1', 'private' => rsaKey('k1')['private']]),
-    'просроченный' => fn () => signedToken($this->key, ['exp' => time() - 120]),
-    'nbf в будущем' => fn () => signedToken($this->key, ['nbf' => time() + 120]),
-    'чужой iss' => fn () => signedToken($this->key, ['iss' => 'https://evil.test/realms/corp']),
-    'нет нужного aud' => fn () => signedToken($this->key, ['aud' => ['account']]),
-    'azp не из списка' => fn () => signedToken($this->key, ['azp' => 'stranger']),
-    'нет exp' => fn () => signedToken($this->key, ['exp' => null]),
+    'foreign signature' => fn () => signedToken(['kid' => 'k1', 'private' => rsaKey('k1')['private']]),
+    'expired' => fn () => signedToken($this->key, ['exp' => time() - 120]),
+    'nbf in the future' => fn () => signedToken($this->key, ['nbf' => time() + 120]),
+    'foreign iss' => fn () => signedToken($this->key, ['iss' => 'https://evil.test/realms/corp']),
+    'required aud missing' => fn () => signedToken($this->key, ['aud' => ['account']]),
+    'azp not in the list' => fn () => signedToken($this->key, ['azp' => 'stranger']),
+    'no exp' => fn () => signedToken($this->key, ['exp' => null]),
     'alg none' => fn () => unsignedToken('none', 'k1'),
-    'HS256, подписанный публичным ключом' => fn () => JWT::encode(
+    'HS256 signed with the public key' => fn () => JWT::encode(
         ['iss' => 'https://keycloak.test/realms/corp', 'aud' => 'employee-service', 'azp' => 'portguard-api', 'exp' => time() + 300],
         (string) openssl_pkey_get_details(openssl_pkey_get_private($this->key['private']))['key'],
         'HS256',
@@ -126,20 +126,20 @@ it('отказывает (401)', function (string $jwt) {
     ),
 ]);
 
-it('доверяет только ключам подписи: токен по ключу шифрования (use=enc) получает 401', function () {
+it('trusts signing keys only: a token signed with the encryption key (use=enc) gets 401', function () {
     $encryption = rsaKey('enc-real');
     $this->jwks[] = ['use' => 'enc', 'alg' => 'RSA-OAEP'] + $encryption['jwk'];
 
     ping(signedToken($encryption))->assertUnauthorized();
 });
 
-it('без настроенного audience отказывает всем', function () {
+it('refuses everyone without a configured audience', function () {
     config(['keycloak.api.audience' => null]);
 
     ping(signedToken($this->key))->assertUnauthorized();
 });
 
-it('JWKS недоступен: 401, а не 500, warning без токена', function () {
+it('JWKS unavailable: 401 instead of 500, a warning without the token', function () {
     $this->jwks = null;
     Log::spy();
 
@@ -148,14 +148,14 @@ it('JWKS недоступен: 401, а не 500, warning без токена', f
     Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => str_contains($message, 'JWKS'));
 });
 
-it('кеширует JWKS: второй запрос в Keycloak не ходит', function () {
+it('caches the JWKS: the second request does not call Keycloak', function () {
     ping(signedToken($this->key))->assertOk();
     ping(signedToken($this->key))->assertOk();
 
     expect(jwksRequests())->toBe(1);
 });
 
-it('новый kid после ротации: JWKS перечитан, запрос прошёл', function () {
+it('a new kid after rotation: the JWKS is refetched and the request passes', function () {
     ping(signedToken($this->key))->assertOk();
 
     $rotated = rsaKey('k2');
@@ -166,7 +166,7 @@ it('новый kid после ротации: JWKS перечитан, запр�
     expect(jwksRequests())->toBe(2);
 });
 
-it('JWKS недоступен при ротации: следующий запрос перечитывает снова, а не ждёт минуту', function () {
+it('JWKS unavailable during rotation: the next request refetches again instead of waiting a minute', function () {
     ping(signedToken($this->key))->assertOk();
 
     $rotated = rsaKey('k2');
@@ -179,7 +179,7 @@ it('JWKS недоступен при ротации: следующий запр
     expect(jwksRequests())->toBe(3);
 });
 
-it('мусорный kid перечитывает JWKS не чаще раза в минуту', function () {
+it('a garbage kid refetches the JWKS at most once a minute', function () {
     ping(signedToken($this->key))->assertOk();
 
     $garbage = rsaKey('garbage');
@@ -194,48 +194,48 @@ it('мусорный kid перечитывает JWKS не чаще раза в
     expect(jwksRequests())->toBe(3);
 });
 
-it('не-JWT токен даёт null без HTTP-запросов', function (string $token) {
+it('a non-JWT token yields null without HTTP requests', function (string $token) {
     ping($token)->assertUnauthorized();
 
     Http::assertNothingSent();
 })->with([
     'Sanctum' => '1|abcdefghijklmnopqrstuvwxyz',
-    'две части' => 'abc.def',
-    'без kid' => JWT::urlsafeB64Encode('{"alg":"RS256"}').'.e30.sig',
+    'two segments' => 'abc.def',
+    'no kid' => JWT::urlsafeB64Encode('{"alg":"RS256"}').'.e30.sig',
 ]);
 
-it('без заголовка Authorization 401 без HTTP-запросов', function () {
+it('without the Authorization header: 401 without HTTP requests', function () {
     $this->getJson('api/ping')->assertUnauthorized();
 
     Http::assertNothingSent();
 });
 
-describe('уступает очередь следующему guard-у', function () {
-    it('токен для other проходит на auth:keycloak,other', function () {
+describe('yields to the next guard', function () {
+    it('a token for other passes auth:keycloak,other', function () {
         $this->getJson('api/either', ['Authorization' => 'Bearer other-token'])
             ->assertOk()
             ->assertJson(['id' => 'other']);
     });
 
-    it('токен Keycloak проходит на auth:keycloak,other', function () {
+    it('a Keycloak token passes auth:keycloak,other', function () {
         $this->getJson('api/either', ['Authorization' => 'Bearer '.signedToken($this->key)])
             ->assertOk()
             ->assertJson(['id' => 'portguard-api']);
     });
 
-    it('битый JWT не роняет запрос, а уступает: other его тоже не знает, поэтому 401', function () {
+    it('a broken JWT does not break the request but yields: other does not know it either, hence 401', function () {
         $this->getJson('api/either', ['Authorization' => 'Bearer '.unsignedToken('none', 'k1')])
             ->assertUnauthorized();
     });
 });
 
-it('проект подменяет пользователя guard-а своим классом', function () {
+it('the project replaces the guard user with its own class', function () {
     Keycloak::resolveApiClientUsing(fn (array $claims) => new GenericUser(['id' => 'api:'.$claims['azp']]));
 
     ping(signedToken($this->key))->assertOk()->assertJson(['class' => GenericUser::class, 'id' => 'api:portguard-api']);
 });
 
-it('свой резолвер может отказать, вернув null', function () {
+it('a custom resolver can refuse by returning null', function () {
     Keycloak::resolveApiClientUsing(fn (array $claims) => null);
 
     ping(signedToken($this->key))->assertUnauthorized();

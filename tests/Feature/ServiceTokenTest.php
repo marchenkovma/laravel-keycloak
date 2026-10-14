@@ -22,7 +22,7 @@ function fakeTokenEndpoint(int $expiresIn = 300): void
     }]);
 }
 
-it('запрашивает токен client credentials формой с client_id и client_secret из корня', function () {
+it('requests a client credentials token as a form with client_id and client_secret from the root config', function () {
     fakeTokenEndpoint();
 
     expect(Keycloak::serviceToken())->toBe('token-1');
@@ -35,7 +35,7 @@ it('запрашивает токен client credentials формой с client_
         && $request['client_secret'] === 'web-secret');
 });
 
-it('берёт учётные данные из секции client_credentials, если она заполнена', function () {
+it('takes the credentials from the client_credentials section when it is filled', function () {
     config(['keycloak.client_credentials' => ['client_id' => 'portguard-api', 'client_secret' => 'api-secret']]);
     fakeTokenEndpoint();
 
@@ -44,7 +44,7 @@ it('берёт учётные данные из секции client_credentials,
     Http::assertSent(fn (HttpRequest $request) => $request['client_id'] === 'portguard-api' && $request['client_secret'] === 'api-secret');
 });
 
-it('аргументы перекрывают конфиг', function () {
+it('arguments override the config', function () {
     fakeTokenEndpoint();
 
     Keycloak::serviceToken('reports-api', 'reports-secret');
@@ -52,7 +52,7 @@ it('аргументы перекрывают конфиг', function () {
     Http::assertSent(fn (HttpRequest $request) => $request['client_id'] === 'reports-api' && $request['client_secret'] === 'reports-secret');
 });
 
-it('client_id без секрета в client_credentials: исключение, а не секрет веб-клиента', function () {
+it('client_id without a secret in client_credentials: an exception, not the web client secret', function () {
     config(['keycloak.client_credentials' => ['client_id' => 'portguard-api', 'client_secret' => null]]);
     Http::fake();
 
@@ -61,7 +61,7 @@ it('client_id без секрета в client_credentials: исключение,
     Http::assertNothingSent();
 });
 
-it('client_id аргументом без секрета: исключение, секрет из конфига не подставляется', function () {
+it('client_id as an argument without a secret: an exception, the config secret is not substituted', function () {
     Http::fake();
 
     expect(fn () => Keycloak::serviceToken('reports-api'))->toThrow(ServiceTokenException::class);
@@ -69,7 +69,7 @@ it('client_id аргументом без секрета: исключение, 
     Http::assertNothingSent();
 });
 
-it('кеширует токен: повторный вызов не ходит в Keycloak', function () {
+it('caches the token: a repeated call does not go to Keycloak', function () {
     fakeTokenEndpoint();
 
     expect(Keycloak::serviceToken())->toBe('token-1')
@@ -78,7 +78,7 @@ it('кеширует токен: повторный вызов не ходит �
     Http::assertSentCount(1);
 });
 
-it('после expires_in минус 30 с запрашивает заново', function () {
+it('requests again after expires_in minus 30 seconds', function () {
     fakeTokenEndpoint(expiresIn: 300);
 
     expect(Keycloak::serviceToken())->toBe('token-1');
@@ -92,7 +92,7 @@ it('после expires_in минус 30 с запрашивает заново',
     Http::assertSentCount(2);
 });
 
-it('токены разных клиентов кешируются отдельно', function () {
+it('tokens of different clients are cached separately', function () {
     fakeTokenEndpoint();
 
     expect(Keycloak::serviceToken('a-api', 'a'))->toBe('token-1')
@@ -100,7 +100,7 @@ it('токены разных клиентов кешируются отдель
         ->and(Keycloak::serviceToken('a-api', 'a'))->toBe('token-1');
 });
 
-it('токен, живущий меньше запаса, не кешируется', function () {
+it('a token living shorter than the margin is not cached', function () {
     fakeTokenEndpoint(expiresIn: 20);
 
     Keycloak::serviceToken();
@@ -109,7 +109,7 @@ it('токен, живущий меньше запаса, не кеширует�
     Http::assertSentCount(2);
 });
 
-it('отказ Keycloak: исключение с error из ответа и без секрета', function () {
+it('Keycloak refusal: an exception with the error from the response and without the secret', function () {
     Http::fake([TOKEN_URL => Http::response(['error' => 'unauthorized_client', 'error_description' => 'Invalid client or Invalid client credentials'], 401)]);
 
     expect(fn () => Keycloak::serviceToken('portguard-api', 'super-secret-value'))
@@ -122,7 +122,7 @@ it('отказ Keycloak: исключение с error из ответа и бе
         });
 });
 
-it('Keycloak недоступен: исключение пакета без секрета', function () {
+it('Keycloak unreachable: a package exception without the secret', function () {
     Http::fake([TOKEN_URL => fn () => throw new ConnectionException('cURL error 7: client_secret=super-secret-value')]);
 
     expect(fn () => Keycloak::serviceToken('portguard-api', 'super-secret-value'))
@@ -134,13 +134,13 @@ it('Keycloak недоступен: исключение пакета без се
         });
 });
 
-it('ответ без access_token даёт исключение', function () {
+it('a response without access_token throws an exception', function () {
     Http::fake([TOKEN_URL => Http::response(['expires_in' => 300])]);
 
     expect(fn () => Keycloak::serviceToken())->toThrow(ServiceTokenException::class, 'нет access_token');
 });
 
-it('без client_id и client_secret исключение без похода в Keycloak', function () {
+it('without client_id and client_secret: an exception without calling Keycloak', function () {
     config(['keycloak.client_id' => null, 'keycloak.client_secret' => null]);
     Http::fake();
 

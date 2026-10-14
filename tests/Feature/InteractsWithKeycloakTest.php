@@ -23,32 +23,32 @@ beforeEach(function () {
     })->middleware('auth:keycloak');
 });
 
-it('withKeycloakToken проходит guard keycloak с claims из конфига', function () {
+it('withKeycloakToken passes the keycloak guard with claims from the config', function () {
     $this->withKeycloakToken()->getJson('api/whoami')
         ->assertOk()
         ->assertExactJson(['azp' => 'portguard-api', 'aud' => 'employee-service', 'scope' => null]);
 });
 
-it('withKeycloakToken дополняет и переопределяет claims', function () {
+it('withKeycloakToken adds and overrides claims', function () {
     $this->withKeycloakToken(['azp' => 'other-api', 'scope' => 'read'])->getJson('api/whoami')
         ->assertOk()
         ->assertJson(['azp' => 'other-api', 'scope' => 'read']);
 });
 
-it('null в claims убирает claim: без exp guard отказывает', function () {
+it('null in claims removes the claim: without exp the guard refuses', function () {
     $this->withKeycloakToken(['exp' => null])->getJson('api/whoami')->assertUnauthorized();
 });
 
-it('токен клиента не из списка guard не пускает', function () {
+it('the guard rejects a token of a client outside the list', function () {
     $this->withKeycloakToken(['azp' => 'stranger'])->getJson('api/whoami')->assertUnauthorized();
 });
 
-it('несколько запросов в одном тесте: каждый со своим токеном', function () {
+it('several requests in one test, each with its own token', function () {
     $this->withKeycloakToken()->getJson('api/whoami')->assertJson(['azp' => 'portguard-api']);
     $this->withKeycloakToken(['azp' => 'other-api'])->getJson('api/whoami')->assertJson(['azp' => 'other-api']);
 });
 
-it('guard не ходит за JWKS по сети: Http::fake проекта, даже на все адреса, не мешает', function () {
+it('the guard does not fetch the JWKS over the network: a project Http::fake, even a catch-all, does not interfere', function () {
     Http::fake(['*' => Http::response('', 500)]);
 
     $this->withKeycloakToken()->getJson('api/whoami')->assertOk();
@@ -56,7 +56,7 @@ it('guard не ходит за JWKS по сети: Http::fake проекта, д
     Http::assertNothingSent();
 });
 
-it('свои заглушки Http::fake после withKeycloakToken тоже работают', function () {
+it('project Http::fake stubs registered after withKeycloakToken keep working', function () {
     $this->withKeycloakToken();
     Http::fake(['https://employees.test/*' => Http::response(['ok' => true])]);
 
@@ -66,17 +66,17 @@ it('свои заглушки Http::fake после withKeycloakToken тоже �
     Http::assertSentCount(1);
 });
 
-it('кеш, который не хранит значения, даёт понятную ошибку вместо 401', function () {
+it('a cache store that keeps no values gives a clear error instead of 401', function () {
     config(['cache.stores.null' => ['driver' => 'null'], 'cache.default' => 'null']);
 
     expect(fn () => $this->withKeycloakToken())->toThrow(RuntimeException::class, 'cache');
 });
 
-it('keycloakToken отдаёт сам токен для своих заголовков', function () {
+it('keycloakToken returns the raw token for custom headers', function () {
     $this->getJson('api/whoami', ['Authorization' => 'Bearer '.$this->keycloakToken()])->assertOk();
 });
 
-it('actingAsKeycloakUser входит пользователем с ролью в сессии', function () {
+it('actingAsKeycloakUser signs the user in with a role in the session', function () {
     $user = keycloakTestUser();
 
     $this->actingAsKeycloakUser($user, 'admin')->get('/admin-only')->assertOk();
