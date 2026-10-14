@@ -8,12 +8,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\SocialiteServiceProvider;
 use Marchenkovma\LaravelKeycloak\KeycloakServiceProvider;
+use Marchenkovma\LaravelKeycloak\Testing\InteractsWithKeycloak;
 use Orchestra\Testbench\TestCase as Orchestra;
 use SocialiteProviders\Manager\ServiceProvider as SocialiteProvidersServiceProvider;
 use Workbench\App\Models\User;
 
 abstract class TestCase extends Orchestra
 {
+    use InteractsWithKeycloak;
     use RefreshDatabase;
 
     protected function getPackageProviders($app): array

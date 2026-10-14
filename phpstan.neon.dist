@@ -4,6 +4,9 @@ parameters:
         - src
         - config
         - routes
+        # Трейт InteractsWithKeycloak phpstan проверяет только в классе,
+        # который его подключает: здесь это TestCase на Testbench
+        - tests/TestCase.php
     # env() разрешён в конфиге пакета, а не только в config/ приложения Testbench
     configDirectories:
         - config

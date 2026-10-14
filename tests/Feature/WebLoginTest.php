@@ -6,15 +6,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Route;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
-use Marchenkovma\LaravelKeycloak\Tests\TestCase;
 use Workbench\App\Models\User;
-
-function actingAsKeycloakRole(string $role, ?string $idToken = 'fake-id-token'): TestCase
-{
-    return test()->actingAs(keycloakTestUser())->withSession([
-        'keycloak' => ['role' => $role, 'id_token' => $idToken],
-    ]);
-}
 
 describe('login', function () {
     it('отправляет на authorize-эндпоинт Keycloak с PKCE', function () {
@@ -161,7 +153,7 @@ describe('callback', function () {
 
 describe('logout', function () {
     it('чистит сессию и уводит на end_session Keycloak с id_token_hint', function () {
-        $response = actingAsKeycloakRole('user')->post(route('auth.logout'));
+        $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->post(route('auth.logout'));
 
         $this->assertGuest();
         $response->assertSessionHas('auth_notice', 'signed_out');
@@ -173,7 +165,7 @@ describe('logout', function () {
     });
 
     it('Inertia-logout получает 409 с X-Inertia-Location: иначе XHR упрётся в CORS', function () {
-        $response = actingAsKeycloakRole('user')
+        $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'user')
             ->post(route('auth.logout'), [], ['X-Inertia' => 'true'])
             ->assertStatus(409);
 
@@ -186,14 +178,14 @@ describe('logout', function () {
     it('после выхода ведёт на after_logout из конфига', function () {
         config(['keycloak.web.redirects.after_logout' => 'welcome']);
 
-        $response = actingAsKeycloakRole('admin')->post(route('auth.logout'));
+        $response = $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->post(route('auth.logout'));
 
         expect($response->headers->get('Location'))
             ->toContain('post_logout_redirect_uri='.urlencode(route('welcome')));
     });
 
     it('без id_token (bypass) ведёт сразу на after_logout мимо Keycloak', function () {
-        actingAsKeycloakRole('admin', idToken: null)
+        $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->withSession(['keycloak' => ['role' => 'admin', 'id_token' => null]])
             ->post(route('auth.logout'))
             ->assertRedirect(route('home'))
             ->assertSessionHas('auth_notice', 'signed_out');
@@ -204,7 +196,7 @@ describe('logout', function () {
 
 describe('роль в сессии', function () {
     it('Keycloak::role и hasRole читают роль из сессии', function () {
-        actingAsKeycloakRole('admin')->get('/');
+        $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->get('/');
 
         expect(Keycloak::role())->toBe('admin')
             ->and(Keycloak::hasRole('admin'))->toBeTrue()
@@ -218,7 +210,7 @@ describe('роль в сессии', function () {
     });
 
     it('keycloak.role без аргументов пускает любую роль приложения', function () {
-        actingAsKeycloakRole('user')->get('/any-role')->assertOk();
+        $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->get('/any-role')->assertOk();
     });
 
     it('keycloak.role без роли в сессии отвечает 403', function () {
@@ -228,11 +220,11 @@ describe('роль в сессии', function () {
     });
 
     it('keycloak.role:admin пускает admin и не пускает user', function () {
-        actingAsKeycloakRole('admin')->get('/admin-only')->assertOk();
+        $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->get('/admin-only')->assertOk();
 
         app('auth')->forgetGuards();
 
-        actingAsKeycloakRole('user')->get('/admin-only')->assertForbidden();
+        $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->get('/admin-only')->assertForbidden();
     });
 });
 

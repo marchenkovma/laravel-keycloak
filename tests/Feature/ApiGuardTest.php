@@ -14,62 +14,6 @@ use Illuminate\Testing\TestResponse;
 use Marchenkovma\LaravelKeycloak\Api\KeycloakClient;
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 
-const JWKS_URL = 'https://keycloak.test/realms/corp/protocol/openid-connect/certs';
-
-/**
- * RSA-пара с JWK публичной части.
- *
- * @return array{kid: string, private: string, jwk: array<string, string>}
- */
-function rsaKey(string $kid): array
-{
-    $pkey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
-    openssl_pkey_export($pkey, $private);
-    $rsa = openssl_pkey_get_details($pkey)['rsa'];
-
-    return [
-        'kid' => $kid,
-        'private' => $private,
-        'jwk' => [
-            'kid' => $kid, 'kty' => 'RSA', 'alg' => 'RS256', 'use' => 'sig',
-            'n' => JWT::urlsafeB64Encode($rsa['n']),
-            'e' => JWT::urlsafeB64Encode($rsa['e']),
-        ],
-    ];
-}
-
-/**
- * @param  array{kid: string, private: string}  $key
- * @param  array<string, mixed>  $claims  null в значении убирает claim
- */
-function signedToken(array $key, array $claims = []): string
-{
-    $payload = array_filter([
-        'iss' => 'https://keycloak.test/realms/corp',
-        'aud' => ['employee-service', 'account'],
-        'azp' => 'portguard-api',
-        'exp' => time() + 300,
-        'iat' => time(),
-        'scope' => 'profile email',
-        'resource_access' => ['employee-service' => ['roles' => ['read']]],
-        ...$claims,
-    ], fn ($value) => $value !== null);
-
-    return JWT::encode($payload, $key['private'], 'RS256', $key['kid']);
-}
-
-// Заголовок и payload руками: php-jwt такие токены не подпишет
-function unsignedToken(string $alg, string $kid): string
-{
-    $header = JWT::urlsafeB64Encode((string) json_encode(['alg' => $alg, 'typ' => 'JWT', 'kid' => $kid]));
-    $payload = JWT::urlsafeB64Encode((string) json_encode([
-        'iss' => 'https://keycloak.test/realms/corp', 'aud' => 'employee-service',
-        'azp' => 'portguard-api', 'exp' => time() + 300,
-    ]));
-
-    return "{$header}.{$payload}.";
-}
-
 beforeEach(function () {
     config([
         'keycloak.api.audience' => 'employee-service',
@@ -84,7 +28,7 @@ beforeEach(function () {
     // null значит, что Keycloak недоступен. Рядом ключ шифрования, как отдаёт Keycloak
     $this->jwks = [$this->key['jwk'], ['kid' => 'enc', 'kty' => 'RSA', 'alg' => 'RSA-OAEP', 'use' => 'enc', 'n' => 'xx', 'e' => 'AQAB']];
 
-    Http::fake([JWKS_URL => fn () => $this->jwks === null
+    Http::fake([KEYCLOAK_TEST_JWKS_URL => fn () => $this->jwks === null
         ? Http::response('', 500)
         : Http::response(['keys' => $this->jwks])]);
 
@@ -113,7 +57,7 @@ function ping(string $token): TestResponse
 
 function jwksRequests(): int
 {
-    return Http::recorded(fn (HttpRequest $request) => $request->url() === JWKS_URL)->count();
+    return Http::recorded(fn (HttpRequest $request) => $request->url() === KEYCLOAK_TEST_JWKS_URL)->count();
 }
 
 it('пускает токен разрешённого клиента, пользователь KeycloakClient с azp', function () {
