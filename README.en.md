@@ -11,7 +11,7 @@
     <a href="LICENSE.md"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
 </p>
 
-Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE), the application role in the session, and a middleware for it.
+Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE) with the application role in the session, and an API guard that checks service client tokens.
 
 - PHP 8.3+, Laravel 12 or 13.
 - The package does not require Sanctum or Inertia.
@@ -155,6 +155,78 @@ The 403 text comes from the `keycloak::messages.denied` translation (ru, en). Pu
 
 ```bash
 php artisan vendor:publish --tag=keycloak-lang
+```
+
+## API: service client tokens
+
+The `keycloak` guard checks `Authorization: Bearer <jwt>`, a Keycloak client access token obtained via client credentials. Add the guard to `config/auth.php`:
+
+```php
+'guards' => [
+    // ...
+    'keycloak' => ['driver' => 'keycloak'],
+],
+```
+
+```dotenv
+KEYCLOAK_API_AUDIENCE=employee-service      # aud the token must contain
+KEYCLOAK_API_CLIENTS=portguard-api,other    # allowed azp, comma-separated
+KEYCLOAK_ISSUER=                             # empty means {KEYCLOAK_BASE_URL}/realms/{realm}
+KEYCLOAK_JWKS_CACHE_TTL=3600
+```
+
+Set `KEYCLOAK_ISSUER` when the application reaches Keycloak by an internal address. The token `iss` is the public address the token was issued at, while the keys (JWKS) are fetched from `KEYCLOAK_BASE_URL`.
+
+```php
+// Keycloak only
+Route::middleware('auth:keycloak')->group(...);
+
+// Keycloak or Sanctum: whichever recognises the token lets it in
+Route::middleware('auth:keycloak,sanctum')->group(...);
+```
+
+On a foreign or broken token the guard returns "no user" instead of throwing. That is why `auth:keycloak,sanctum` falls through to Sanctum, while `auth:keycloak` alone gives a regular 401. Sanctum tokens (`1|abc…`) are skipped right away, without requests to Keycloak.
+
+What is checked:
+
+- an RS256 signature against the realm JWKS (`none` and HS* are rejected). Keys are cached; an unknown `kid` refetches the JWKS (key rotation), at most once a minute;
+- `iss`, `aud` contains `KEYCLOAK_API_AUDIENCE`, `azp` is in `KEYCLOAK_API_CLIENTS`;
+- `exp` is required, `exp` and `nbf` allow 30 s of clock skew (`keycloak.api.leeway`).
+
+If Keycloak is unreachable: 401 and a warning in the log. A rejected token: info with `kid`, `iss`, `azp` and the reason. The token itself is never logged.
+
+The guard user is `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`:
+
+```php
+$client = $request->user();
+
+$client->getAuthIdentifier();                 // azp, e.g. 'portguard-api'
+$client->claims;                              // all token claims
+$client->hasRole('employee-service', 'read'); // role from resource_access
+$client->hasScope('email');
+```
+
+Use your own class instead in `AppServiceProvider::boot()`:
+
+```php
+Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $claims['azp']]));
+```
+
+### Keycloak client setup
+
+1. The client that calls the API (e.g. `portguard-api`):
+   - Client authentication ON (confidential);
+   - Service accounts roles ON;
+   - Standard flow and Direct access grants OFF.
+2. An audience mapper on that client: Included Custom Audience = the receiving API audience (`employee-service`), Add to access token ON. A client scope with such a mapper works too.
+3. Only the calling side needs the client secret. The receiving API does not.
+
+Manual check:
+
+```bash
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d client_secret=... \
+  https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
+curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
 
 ## Development

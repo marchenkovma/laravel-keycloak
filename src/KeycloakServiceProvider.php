@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Marchenkovma\LaravelKeycloak;
 
+use Illuminate\Auth\AuthManager;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 use Laravel\Socialite\SocialiteManager;
+use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 use Marchenkovma\LaravelKeycloak\Web\EloquentUserResolver;
 use Marchenkovma\LaravelKeycloak\Web\EnsureKeycloakRole;
@@ -37,6 +41,7 @@ class KeycloakServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerSocialiteDriver();
+        $this->registerApiGuard();
 
         // false: проект регистрирует маршруты сам (KeycloakController)
         if ($this->app->make(Config::class)->get('keycloak.web.routes') === true) {
@@ -58,6 +63,28 @@ class KeycloakServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../lang' => $this->app->langPath('vendor/keycloak'),
         ], ['keycloak', 'keycloak-lang']);
+    }
+
+    /**
+     * Драйвер guard-а keycloak: проект подключает его в config/auth.php,
+     * 'keycloak' => ['driver' => 'keycloak']. На чужой или битый токен
+     * пользователь null: auth:keycloak,sanctum доходит до Sanctum.
+     */
+    private function registerApiGuard(): void
+    {
+        $this->callAfterResolving('auth', function (AuthManager $auth): void {
+            $auth->viaRequest('keycloak', function (Request $request): ?Authenticatable {
+                $token = $request->bearerToken();
+
+                if ($token === null || $token === '') {
+                    return null;
+                }
+
+                $claims = $this->app->make(TokenVerifier::class)->verify($token);
+
+                return $claims === null ? null : $this->app->make(Keycloak::class)->apiClient($claims);
+            });
+        });
     }
 
     /**

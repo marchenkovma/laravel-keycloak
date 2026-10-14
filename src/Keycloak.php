@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Marchenkovma\LaravelKeycloak;
 
+use Closure;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
+use Marchenkovma\LaravelKeycloak\Api\KeycloakClient;
 
 class Keycloak
 {
+    /** @var (Closure(array<string, mixed>): ?Authenticatable)|null */
+    private ?Closure $apiClientResolver = null;
+
     public function __construct(
         private readonly Application $app,
         private readonly Config $config,
@@ -63,5 +69,27 @@ class Keycloak
     public function bypassEnabled(): bool
     {
         return $this->config->get('keycloak.web.bypass') === true && ! $this->app->isProduction();
+    }
+
+    /**
+     * Свой пользователь guard-а keycloak вместо KeycloakClient, например
+     * несохранённая модель. Замыкание получает проверенные claims токена;
+     * null — отказ (401 или следующий guard).
+     *
+     * @param  Closure(array<string, mixed>): ?Authenticatable  $resolver
+     */
+    public function resolveApiClientUsing(Closure $resolver): void
+    {
+        $this->apiClientResolver = $resolver;
+    }
+
+    /**
+     * @param  array<string, mixed>  $claims
+     */
+    public function apiClient(array $claims): ?Authenticatable
+    {
+        return $this->apiClientResolver !== null
+            ? ($this->apiClientResolver)($claims)
+            : new KeycloakClient($claims);
     }
 }

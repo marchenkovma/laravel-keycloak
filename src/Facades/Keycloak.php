@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static bool hasRole(string ...$roles)
  * @method static string|null roleFor(array<mixed> $groups, array<mixed> $clientRoles)
  * @method static bool bypassEnabled()
+ * @method static void resolveApiClientUsing(\Closure(array<string, mixed>): ?\Illuminate\Contracts\Auth\Authenticatable $resolver)
+ * @method static \Illuminate\Contracts\Auth\Authenticatable|null apiClient(array<string, mixed> $claims)
  *
  * @see \Marchenkovma\LaravelKeycloak\Keycloak
  */

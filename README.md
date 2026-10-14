@@ -11,7 +11,7 @@
     <a href="LICENSE.md"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
 </p>
 
-Keycloak для Laravel: вход пользователей через OIDC (Authorization Code + PKCE), роль приложения в сессии и middleware для неё.
+Keycloak для Laravel: вход пользователей через OIDC (Authorization Code + PKCE) с ролью приложения в сессии и guard для API, который проверяет токены сервисных клиентов.
 
 - PHP 8.3+, Laravel 12 или 13.
 - Sanctum и Inertia пакету не нужны.
@@ -155,6 +155,78 @@ $this->app->bind(ResolvesKeycloakUser::class, MyKeycloakUsers::class);
 
 ```bash
 php artisan vendor:publish --tag=keycloak-lang
+```
+
+## API: токены сервисных клиентов
+
+Guard `keycloak` проверяет `Authorization: Bearer <jwt>` — access-токен клиента Keycloak, полученный по client credentials. Подключите guard в `config/auth.php`:
+
+```php
+'guards' => [
+    // ...
+    'keycloak' => ['driver' => 'keycloak'],
+],
+```
+
+```dotenv
+KEYCLOAK_API_AUDIENCE=employee-service      # aud, который должен быть в токене
+KEYCLOAK_API_CLIENTS=portguard-api,other    # разрешённые azp через запятую
+KEYCLOAK_ISSUER=                             # пусто — {KEYCLOAK_BASE_URL}/realms/{realm}
+KEYCLOAK_JWKS_CACHE_TTL=3600
+```
+
+`KEYCLOAK_ISSUER` нужен, если приложение ходит в Keycloak по внутреннему адресу. `iss` в токене — публичный адрес, по которому токен выдан, а ключи (JWKS) берутся по `KEYCLOAK_BASE_URL`.
+
+```php
+// только Keycloak
+Route::middleware('auth:keycloak')->group(...);
+
+// Keycloak или Sanctum: кто узнал токен, тот и пустил
+Route::middleware('auth:keycloak,sanctum')->group(...);
+```
+
+На чужой или битый токен guard возвращает «нет пользователя», а не исключение. Поэтому `auth:keycloak,sanctum` доходит до Sanctum, а одиночный `auth:keycloak` даёт обычный 401. Токены Sanctum (`1|abc…`) guard отсеивает сразу, без запросов в Keycloak.
+
+Что проверяется:
+
+- подпись RS256 по JWKS realm-а (`none` и HS* отвергаются). Ключи кешируются, неизвестный `kid` перечитывает JWKS (ротация), но не чаще раза в минуту;
+- `iss`, `aud` содержит `KEYCLOAK_API_AUDIENCE`, `azp` из `KEYCLOAK_API_CLIENTS`;
+- `exp` обязателен, `exp` и `nbf` — с допуском 30 с (`keycloak.api.leeway`).
+
+Keycloak недоступен — 401 и warning в логе. Отказ по токену — info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
+
+Пользователь guard-а — `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`:
+
+```php
+$client = $request->user();
+
+$client->getAuthIdentifier();                 // azp, например 'portguard-api'
+$client->claims;                              // все claims токена
+$client->hasRole('employee-service', 'read'); // роль из resource_access
+$client->hasScope('email');
+```
+
+Свой класс вместо него — в `AppServiceProvider::boot()`:
+
+```php
+Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $claims['azp']]));
+```
+
+### Настройка клиента в Keycloak
+
+1. Клиент, который будет ходить в API (например, `portguard-api`):
+   - Client authentication ON (confidential);
+   - Service accounts roles ON;
+   - Standard flow и Direct access grants OFF.
+2. Audience mapper на этом клиенте: Included Custom Audience = audience принимающего API (`employee-service`), Add to access token ON. Вместо этого можно взять client scope с таким mapper-ом.
+3. Секрет клиента нужен только вызывающей стороне. Принимающему API он не нужен.
+
+Проверка руками:
+
+```bash
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d client_secret=... \
+  https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
+curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
 
 ## Разработка
