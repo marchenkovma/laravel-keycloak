@@ -75,7 +75,7 @@ The package registers these routes with the `web` middleware:
 
 The prefix is set in `keycloak.web.prefix`.
 
-To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (`login`, `callback`, `logout`).
+To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (`login`, `callback`, `logout`). Name the callback route `auth.callback`: the package takes the `redirect_uri` for Keycloak from it. Without that name it uses `{prefix}/callback`.
 
 ### Client setup for login
 
@@ -137,6 +137,7 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // admin only
 The session keeps an `auth_notice` flash so the page can explain what happened:
 
 - `session_expired`: the login form stayed open longer than the session lived;
+- `login_failed`: Keycloak returned `error` instead of a code, e.g. the user cancelled the login;
 - `signed_out`: the user signed out.
 
 Logout goes to the Keycloak end_session endpoint with `id_token_hint`. For an Inertia request (`X-Inertia` header) the package responds with `409` and `X-Inertia-Location`, otherwise with a regular redirect.
@@ -253,6 +254,8 @@ The token is cached until `expires_in` minus 30 s, so repeated calls do not reac
 2. `KEYCLOAK_SERVICE_CLIENT_ID` and `KEYCLOAK_SERVICE_CLIENT_SECRET`, when the calls are made by a separate client (e.g. `portguard-api`) and users sign in through another one;
 3. `KEYCLOAK_CLIENT_ID` and `KEYCLOAK_CLIENT_SECRET`.
 
+The pair always comes from a single source. If only `KEYCLOAK_SERVICE_CLIENT_ID` is set without the secret, or only the first argument is passed, an exception is thrown: one client's id never goes out with another client's secret.
+
 If Keycloak refuses or is unreachable, `Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException` is thrown. Its message names the client, the URL and the `error` from the Keycloak response, never the secret.
 
 ### Keycloak client setup
@@ -303,7 +306,7 @@ The trait takes `iss`, `aud`, `azp` and the JWKS URL from the config, so the pro
 <env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
 ```
 
-- `withKeycloakToken()` generates an RSA key and fakes the JWKS with `Http::fake`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
+- `withKeycloakToken()` generates an RSA key and puts its JWKS into the cache, where the guard reads the keys from. The guard never hits the network, so the project's own `Http::fake` does not interfere and `Http::assertNothingSent()` passes. The test cache must keep values: `CACHE_STORE=array`, as in the default Laravel `phpunit.xml`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
 - `keycloakToken($claims)` returns the token itself, e.g. for custom headers.
 - Several `withKeycloakToken()` calls in one test work: before each one the trait drops the user remembered by the guard. If a token from `keycloakToken()` is sent in a custom header, call `app('auth')->forgetGuards()` yourself before the second request.
 

@@ -10,7 +10,7 @@
 
 - Маршруты `auth/login`, `auth/callback`, `auth/logout`: Authorization Code + PKCE через Socialite, драйвер `keycloak` регистрирует пакет, `services.keycloak` не нужен.
 - Роль приложения по группам и ролям клиента (`keycloak.web.roles`), хранится в сессии. `Keycloak::role()`, `Keycloak::hasRole()`, middleware `keycloak.role`.
-- Устаревший state ведёт на `redirects.on_failure` с `auth_notice=session_expired`, выход на end_session с `id_token_hint`, для Inertia 409 с `X-Inertia-Location`.
+- Устаревший state или `error` от Keycloak ведут на `redirects.on_failure` с `auth_notice` (`session_expired`, `login_failed`), выход на end_session с `id_token_hint`, для Inertia 409 с `X-Inertia-Location`.
 - Bypass-вход для локальной разработки, в production не действует.
 - Свой пользователь через `ResolvesKeycloakUser`, тексты в переводах `keycloak::messages` (ru, en).
 
@@ -21,4 +21,4 @@
 
 ### Тесты
 
-- Трейт `InteractsWithKeycloak`: `withKeycloakToken()`, `keycloakToken()`, `actingAsKeycloakUser()`.
+- Трейт `InteractsWithKeycloak`: `withKeycloakToken()`, `keycloakToken()`, `actingAsKeycloakUser()`. Тестовый JWKS кладётся в кеш, в сеть guard не ходит.

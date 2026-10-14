@@ -75,7 +75,7 @@ Keycloak с сертификатом корпоративного CA: корне
 
 Префикс задаётся в `keycloak.web.prefix`.
 
-Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (методы `login`, `callback`, `logout`).
+Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (методы `login`, `callback`, `logout`). Маршрут callback назовите `auth.callback`: из него пакет берёт `redirect_uri` для Keycloak. Без такого имени используется `{prefix}/callback`.
 
 ### Настройка клиента для входа
 
@@ -137,6 +137,7 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // только
 В сессии остаётся flash `auth_notice`, по которому страница может объяснить, что произошло:
 
 - `session_expired`: форма входа провисела дольше жизни сессии;
+- `login_failed`: Keycloak вернул `error` вместо кода, например пользователь отменил вход;
 - `signed_out`: пользователь вышел.
 
 Выход идёт на end_session Keycloak с `id_token_hint`. Для Inertia-запроса (заголовок `X-Inertia`) пакет отвечает `409` с `X-Inertia-Location`, иначе обычным redirect.
@@ -253,6 +254,8 @@ Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/ap
 2. `KEYCLOAK_SERVICE_CLIENT_ID` и `KEYCLOAK_SERVICE_CLIENT_SECRET`, если вызовы идут от отдельного клиента (например, `portguard-api`), а вход пользователей от другого;
 3. `KEYCLOAK_CLIENT_ID` и `KEYCLOAK_CLIENT_SECRET`.
 
+Пара берётся целиком из одного источника. Если задан только `KEYCLOAK_SERVICE_CLIENT_ID` без секрета или только первый аргумент, бросается исключение: id одного клиента не уйдёт с секретом другого.
+
 Если Keycloak отказал или недоступен, бросается `Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException`. В тексте исключения есть клиент, адрес и `error` из ответа Keycloak, секрета там нет.
 
 ### Настройка клиента в Keycloak
@@ -303,7 +306,7 @@ $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 <env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
 ```
 
-- `withKeycloakToken()` генерирует ключ RSA и подменяет JWKS через `Http::fake`. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
+- `withKeycloakToken()` генерирует ключ RSA и кладёт его JWKS в кеш, откуда guard берёт ключи. В сеть guard не ходит, поэтому `Http::fake` проекта ему не мешает, а `Http::assertNothingSent()` проходит. Кеш в тестах должен хранить значения: `CACHE_STORE=array`, как в `phpunit.xml` Laravel по умолчанию. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
 - `keycloakToken($claims)` отдаёт сам токен, например для своих заголовков.
 - Несколько вызовов `withKeycloakToken()` в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя. Если токен из `keycloakToken()` отправляется своим заголовком, перед вторым запросом вызовите `app('auth')->forgetGuards()` сами.
 
