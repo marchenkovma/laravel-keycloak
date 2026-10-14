@@ -6,9 +6,13 @@ namespace Marchenkovma\LaravelKeycloak;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 use Laravel\Socialite\SocialiteManager;
+use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
+use Marchenkovma\LaravelKeycloak\Web\EloquentUserResolver;
+use Marchenkovma\LaravelKeycloak\Web\EnsureKeycloakRole;
 use SocialiteProviders\Keycloak\Provider as KeycloakProvider;
 use SocialiteProviders\Manager\Config as ProviderConfig;
 
@@ -22,6 +26,9 @@ class KeycloakServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/keycloak.php', 'keycloak');
 
         $this->app->singleton(Keycloak::class);
+
+        // Проект подменяет своим bind-ом в AppServiceProvider
+        $this->app->bindIf(ResolvesKeycloakUser::class, EloquentUserResolver::class);
     }
 
     /**
@@ -31,7 +38,12 @@ class KeycloakServiceProvider extends ServiceProvider
     {
         $this->registerSocialiteDriver();
 
-        $this->loadRoutesFrom(__DIR__.'/../routes/keycloak.php');
+        // false: проект регистрирует маршруты сам (KeycloakController)
+        if ($this->app->make(Config::class)->get('keycloak.web.routes') === true) {
+            $this->loadRoutesFrom(__DIR__.'/../routes/keycloak.php');
+        }
+
+        $this->app->make(Router::class)->aliasMiddleware('keycloak.role', EnsureKeycloakRole::class);
 
         $this->loadTranslationsFrom(__DIR__.'/../lang', 'keycloak');
 
