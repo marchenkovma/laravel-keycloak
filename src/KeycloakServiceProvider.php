@@ -33,6 +33,8 @@ class KeycloakServiceProvider extends ServiceProvider
 
         $this->loadRoutesFrom(__DIR__.'/../routes/keycloak.php');
 
+        $this->loadTranslationsFrom(__DIR__.'/../lang', 'keycloak');
+
         if (! $this->app->runningInConsole()) {
             return;
         }
@@ -40,6 +42,10 @@ class KeycloakServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../config/keycloak.php' => config_path('keycloak.php'),
         ], ['keycloak', 'keycloak-config']);
+
+        $this->publishes([
+            __DIR__.'/../lang' => $this->app->langPath('vendor/keycloak'),
+        ], ['keycloak', 'keycloak-lang']);
     }
 
     /**

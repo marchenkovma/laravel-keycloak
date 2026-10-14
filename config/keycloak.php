@@ -31,7 +31,8 @@ return [
             'on_failure' => null,     // куда уводить при устаревшем state; null — на after_logout
         ],
 
-        'denied_message' => 'Нет доступа: обратитесь к администратору за ролью в приложении.',
+        // Текст отказа (403) — в переводах: keycloak::messages.denied,
+        // переопределяется в lang/vendor/keycloak/{locale}/messages.php
 
         // Локальная разработка без Keycloak: вход фейковым пользователем
         // с ролью bypass_role. В production не действует

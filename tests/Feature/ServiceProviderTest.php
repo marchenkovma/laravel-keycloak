@@ -49,3 +49,25 @@ it('reads the config when the driver is built, not at boot', function () {
 it('does not need services.keycloak', function () {
     expect(config('services.keycloak'))->toBeNull();
 });
+
+it('translates the denied message', function (string $locale, string $start) {
+    app()->setLocale($locale);
+
+    expect(__('keycloak::messages.denied'))->toStartWith($start);
+})->with([
+    'ru' => ['ru', 'Нет доступа'],
+    'en' => ['en', 'Access denied'],
+]);
+
+it('publishes the translations with the keycloak-lang tag', function () {
+    $paths = ServiceProvider::pathsToPublish(KeycloakServiceProvider::class, 'keycloak-lang');
+
+    expect(array_values($paths))->toBe([lang_path('vendor/keycloak')]);
+});
+
+it('lets the project override the denied message', function () {
+    app('translator')->addLines(['messages.denied' => 'Свой текст'], 'ru', 'keycloak');
+    app()->setLocale('ru');
+
+    expect(__('keycloak::messages.denied'))->toBe('Свой текст');
+});
