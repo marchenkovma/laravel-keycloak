@@ -9,6 +9,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Marchenkovma\LaravelKeycloak\Api\KeycloakClient;
+use Marchenkovma\LaravelKeycloak\Api\ServiceToken;
+use Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException;
 
 class Keycloak
 {
@@ -91,5 +93,28 @@ class Keycloak
         return $this->apiClientResolver !== null
             ? ($this->apiClientResolver)($claims)
             : new KeycloakClient($claims);
+    }
+
+    /**
+     * Токен client credentials для исходящих запросов, из кеша или свежий.
+     * Без аргументов: keycloak.client_credentials, иначе client_id и
+     * client_secret из корня конфига.
+     *
+     * @throws ServiceTokenException
+     */
+    public function serviceToken(?string $clientId = null, ?string $clientSecret = null): string
+    {
+        return $this->app->make(ServiceToken::class)->get($clientId, $clientSecret);
+    }
+
+    /**
+     * {base_url}/realms/{realm}: адрес realm-а, по которому ходит приложение.
+     */
+    public function realmUrl(): string
+    {
+        $baseUrl = $this->config->get('keycloak.base_url');
+        $realm = $this->config->get('keycloak.realm');
+
+        return rtrim(is_string($baseUrl) ? $baseUrl : '', '/').'/realms/'.(is_string($realm) ? $realm : '');
     }
 }

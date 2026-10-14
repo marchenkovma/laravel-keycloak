@@ -212,6 +212,24 @@ $client->hasScope('email');
 Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $claims['azp']]));
 ```
 
+### Токен для исходящих запросов
+
+`Keycloak::serviceToken()` получает access-токен client credentials, чтобы ходить в другие сервисы от имени клиента:
+
+```php
+use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
+
+Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/api/v1/departments');
+```
+
+Токен кешируется до `expires_in` минус 30 с, повторные вызовы в Keycloak не ходят. Учётные данные берутся в таком порядке:
+
+1. аргументы: `Keycloak::serviceToken('reports-api', $secret)`;
+2. `KEYCLOAK_SERVICE_CLIENT_ID` и `KEYCLOAK_SERVICE_CLIENT_SECRET`, если вызовы идут от отдельного клиента (например, `portguard-api`), а вход пользователей от другого;
+3. `KEYCLOAK_CLIENT_ID` и `KEYCLOAK_CLIENT_SECRET`.
+
+Если Keycloak отказал или недоступен, бросается `Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException`. В тексте исключения есть клиент, адрес и `error` из ответа Keycloak, секрета там нет.
+
 ### Настройка клиента в Keycloak
 
 1. Клиент, который будет ходить в API (например, `portguard-api`):

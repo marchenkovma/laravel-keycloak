@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static bool bypassEnabled()
  * @method static void resolveApiClientUsing(\Closure(array<string, mixed>): ?\Illuminate\Contracts\Auth\Authenticatable $resolver)
  * @method static \Illuminate\Contracts\Auth\Authenticatable|null apiClient(array<string, mixed> $claims)
+ * @method static string serviceToken(string|null $clientId = null, string|null $clientSecret = null)
+ * @method static string realmUrl()
  *
  * @see \Marchenkovma\LaravelKeycloak\Keycloak
  */

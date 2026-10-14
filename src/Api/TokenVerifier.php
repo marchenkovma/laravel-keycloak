@@ -10,6 +10,7 @@ use Firebase\JWT\Key;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Client\Factory as Http;
+use Marchenkovma\LaravelKeycloak\Keycloak;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -25,6 +26,7 @@ class TokenVerifier
     private const int REFETCH_INTERVAL = 60;
 
     public function __construct(
+        private readonly Keycloak $keycloak,
         private readonly Config $config,
         private readonly Cache $cache,
         private readonly Http $http,
@@ -88,12 +90,12 @@ class TokenVerifier
     {
         $issuer = $this->config->get('keycloak.api.issuer');
 
-        return is_string($issuer) && $issuer !== '' ? $issuer : $this->realmUrl();
+        return is_string($issuer) && $issuer !== '' ? $issuer : $this->keycloak->realmUrl();
     }
 
     public function jwksUrl(): string
     {
-        return $this->realmUrl().'/protocol/openid-connect/certs';
+        return $this->keycloak->realmUrl().'/protocol/openid-connect/certs';
     }
 
     /**
@@ -105,14 +107,6 @@ class TokenVerifier
         $clients = is_array($clients) ? $clients : explode(',', is_string($clients) ? $clients : '');
 
         return array_values(array_filter(array_map(fn (mixed $client): string => is_scalar($client) ? trim((string) $client) : '', $clients)));
-    }
-
-    private function realmUrl(): string
-    {
-        $baseUrl = $this->config->get('keycloak.base_url');
-        $realm = $this->config->get('keycloak.realm');
-
-        return rtrim(is_string($baseUrl) ? $baseUrl : '', '/').'/realms/'.(is_string($realm) ? $realm : '');
     }
 
     /**

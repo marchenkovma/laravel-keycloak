@@ -212,6 +212,24 @@ Use your own class instead in `AppServiceProvider::boot()`:
 Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $claims['azp']]));
 ```
 
+### Token for outgoing requests
+
+`Keycloak::serviceToken()` obtains a client credentials access token to call other services on behalf of the client:
+
+```php
+use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
+
+Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/api/v1/departments');
+```
+
+The token is cached until `expires_in` minus 30 s, so repeated calls do not reach Keycloak. Credentials are taken in this order:
+
+1. arguments: `Keycloak::serviceToken('reports-api', $secret)`;
+2. `KEYCLOAK_SERVICE_CLIENT_ID` and `KEYCLOAK_SERVICE_CLIENT_SECRET`, when the calls are made by a separate client (e.g. `portguard-api`) and users sign in through another one;
+3. `KEYCLOAK_CLIENT_ID` and `KEYCLOAK_CLIENT_SECRET`.
+
+If Keycloak refuses or is unreachable, `Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException` is thrown. Its message names the client, the URL and the `error` from the Keycloak response, never the secret.
+
 ### Keycloak client setup
 
 1. The client that calls the API (e.g. `portguard-api`):
