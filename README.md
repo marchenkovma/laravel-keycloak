@@ -18,17 +18,21 @@ Keycloak для Laravel: вход пользователей через OIDC (Au
 
 ## Установка
 
-```bash
-composer require marchenkovma/laravel-keycloak
-```
-
-Пока пакета нет на Packagist, подключите репозиторий в `composer.json` проекта:
+Пока пакета нет на Packagist, сначала подключите репозиторий в `composer.json` проекта:
 
 ```json
 "repositories": [
     {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
 ]
 ```
+
+Затем установите пакет:
+
+```bash
+composer require marchenkovma/laravel-keycloak
+```
+
+Composer берёт версии из тегов репозитория. Пока тега нет, укажите ветку: `composer require marchenkovma/laravel-keycloak:dev-main`.
 
 Провайдер и фасад `Keycloak` подключаются автоматически. Драйвер `keycloak` для Socialite пакет регистрирует сам, поэтому:
 
@@ -290,9 +294,18 @@ $this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')-
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
+Трейт берёт `iss`, `aud`, `azp` и адрес JWKS из конфига, поэтому в `phpunit.xml` проекта должны быть заданы `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_CLIENTS`. Без `KEYCLOAK_API_AUDIENCE` guard отвечает 401 на любой токен.
+
+```xml
+<env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
+<env name="KEYCLOAK_REALM" value="corp"/>
+<env name="KEYCLOAK_API_AUDIENCE" value="employee-service"/>
+<env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
+```
+
 - `withKeycloakToken()` генерирует ключ RSA и подменяет JWKS через `Http::fake`. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
 - `keycloakToken($claims)` отдаёт сам токен, например для своих заголовков.
-- Несколько запросов в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя.
+- Несколько вызовов `withKeycloakToken()` в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя. Если токен из `keycloakToken()` отправляется своим заголовком, перед вторым запросом вызовите `app('auth')->forgetGuards()` сами.
 
 ## Разработка
 

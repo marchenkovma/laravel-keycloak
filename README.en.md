@@ -18,17 +18,21 @@ Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE) with the a
 
 ## Installation
 
-```bash
-composer require marchenkovma/laravel-keycloak
-```
-
-While the package is not on Packagist, add the repository to the project `composer.json`:
+While the package is not on Packagist, first add the repository to the project `composer.json`:
 
 ```json
 "repositories": [
     {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
 ]
 ```
+
+Then install the package:
+
+```bash
+composer require marchenkovma/laravel-keycloak
+```
+
+Composer resolves versions from repository tags. Until a tag exists, request the branch: `composer require marchenkovma/laravel-keycloak:dev-main`.
 
 The service provider and the `Keycloak` facade are auto-discovered. The package registers the `keycloak` Socialite driver itself, so:
 
@@ -290,9 +294,18 @@ $this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')-
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
+The trait takes `iss`, `aud`, `azp` and the JWKS URL from the config, so the project `phpunit.xml` must define `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` and `KEYCLOAK_API_CLIENTS`. Without `KEYCLOAK_API_AUDIENCE` the guard answers 401 to every token.
+
+```xml
+<env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
+<env name="KEYCLOAK_REALM" value="corp"/>
+<env name="KEYCLOAK_API_AUDIENCE" value="employee-service"/>
+<env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
+```
+
 - `withKeycloakToken()` generates an RSA key and fakes the JWKS with `Http::fake`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
 - `keycloakToken($claims)` returns the token itself, e.g. for custom headers.
-- Several requests in one test work: before each one the trait drops the user remembered by the guard.
+- Several `withKeycloakToken()` calls in one test work: before each one the trait drops the user remembered by the guard. If a token from `keycloakToken()` is sent in a custom header, call `app('auth')->forgetGuards()` yourself before the second request.
 
 ## Development
 
