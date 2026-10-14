@@ -163,7 +163,9 @@ php artisan vendor:publish --tag=keycloak-lang
 composer test    # Larastan, Pint, покрытие типов, Pest
 ```
 
-Изменения — в [CHANGELOG](CHANGELOG.md), уязвимости — по [политике безопасности](.github/SECURITY.md).
+Изменения — в [CHANGELOG](CHANGELOG.md).
+
+Нашли уязвимость? Не пишите в открытый issue, сообщите приватно: [Report a vulnerability](https://github.com/marchenkovma/laravel-keycloak/security/advisories/new). Подробнее — в [политике безопасности](.github/SECURITY.md).
 
 ## Лицензия
 
