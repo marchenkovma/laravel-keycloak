@@ -2,7 +2,7 @@
 
 ## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.1.0...HEAD)
 
-## [v0.1.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.1.0...v0.1.0) - 2026-10-14
+## [v0.1.0](https://github.com/marchenkovma/laravel-keycloak/releases/tag/v0.1.0) - 2026-10-14
 
 Первая версия: общий код входа через Keycloak для employee-service и portguard.
 
