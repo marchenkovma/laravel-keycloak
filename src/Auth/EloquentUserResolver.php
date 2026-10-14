@@ -22,7 +22,15 @@ class EloquentUserResolver implements ResolvesKeycloakUser
 
     public function resolve(SocialiteUser $user): Authenticatable
     {
-        return $this->save((string) $user->getNickname(), [
+        $username = $user->getNickname();
+
+        // Пустой username объединил бы всех пользователей в одну запись:
+        // firstOrNew(['username' => '']) находил бы её каждому
+        if (! is_string($username) || $username === '') {
+            throw new UnexpectedValueException('Keycloak: в userinfo нет preferred_username. Проверьте mapper username у клиента.');
+        }
+
+        return $this->save($username, [
             'name' => $user->getName(),
             'email' => $user->getEmail(),
         ]);

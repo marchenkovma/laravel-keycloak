@@ -18,18 +18,18 @@ const KEYCLOAK_TEST_JWKS_URL = 'https://keycloak.test/realms/corp/protocol/openi
  * Socialite стоит на границе с сетью Keycloak и мокается целиком той же цепочкой,
  * что в тестах проектов.
  *
- * @param  list<string>  $groups
- * @param  list<string>  $roles
+ * @param  array<mixed>  $groups
+ * @param  array<mixed>  $roles
  */
-function fakeKeycloakUser(array $groups = [], array $roles = []): void
+function fakeKeycloakUser(array $groups = [], array $roles = [], ?string $nickname = 'ivanov'): void
 {
     $oidcUser = (new OidcUser)->map([
         'id' => 'kc-uuid-1',
-        'nickname' => 'ivanov',
+        'nickname' => $nickname,
         'name' => 'Иван Иванов',
         'email' => 'ivanov@example.com',
     ])->setRaw([
-        'preferred_username' => 'ivanov',
+        'preferred_username' => $nickname,
         'groups' => $groups,
         'roles' => $roles,
     ]);

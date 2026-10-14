@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Route;
+use Laravel\Socialite\Facades\Socialite;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 use Workbench\App\Models\User;
@@ -31,6 +32,16 @@ describe('login', function () {
             ->and(session('keycloak.id_token'))->toBeNull()
             ->and(User::sole()->username)->toBe('bypass')
             ->and(User::sole()->name)->toBe(__('keycloak::messages.bypass_name'));
+    });
+
+    it('bypass с пустой bypass_role не даёт роли приложения: keycloak.role отвечает 403', function () {
+        config(['keycloak.web.bypass' => true, 'keycloak.web.bypass_role' => '']);
+
+        $this->get(route('auth.login'))->assertRedirect(route('home'));
+
+        $this->assertAuthenticated();
+        expect(Keycloak::role())->toBeNull();
+        $this->get('/any-role')->assertForbidden();
     });
 
     it('bypass игнорируется в production', function () {
@@ -134,6 +145,44 @@ describe('callback', function () {
         staleKeycloakState();
 
         $this->get(route('auth.callback').'?state=old&code=x')->assertRedirect(route('welcome'));
+    });
+
+    it('Keycloak вернул error вместо code: on_failure с auth_notice, Socialite не вызывается', function () {
+        config(['keycloak.web.redirects.on_failure' => 'welcome']);
+        Socialite::shouldReceive('driver')->never();
+
+        $this->get(route('auth.callback').'?error=access_denied&error_description=User+cancelled&state=y')
+            ->assertRedirect(route('welcome'))
+            ->assertSessionHas('auth_notice', 'login_failed');
+
+        $this->assertGuest();
+    });
+
+    it('callback без code ведёт на after_logout, а не 500', function () {
+        Socialite::shouldReceive('driver')->never();
+
+        $this->get(route('auth.callback').'?state=y')
+            ->assertRedirect(route('home'))
+            ->assertSessionHas('auth_notice', 'login_failed');
+    });
+
+    it('без preferred_username входа нет: иначе все пользователи слились бы в одну запись', function () {
+        fakeKeycloakUser(groups: ['/apps/employees/user'], nickname: null);
+        $this->withoutExceptionHandling();
+
+        expect(fn () => $this->get(route('auth.callback').'?code=x&state=y'))
+            ->toThrow(UnexpectedValueException::class, 'preferred_username');
+
+        $this->assertGuest();
+        expect(User::count())->toBe(0);
+    });
+
+    it('не строки в claims groups и roles пропускаются, а не роняют вход', function () {
+        fakeKeycloakUser(groups: [['nested' => 'object'], 42, '/apps/employees/user'], roles: [null]);
+
+        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+
+        expect(session('keycloak.role'))->toBe('user');
     });
 
     it('пользователя создаёт реализация проекта, если она подменена', function () {

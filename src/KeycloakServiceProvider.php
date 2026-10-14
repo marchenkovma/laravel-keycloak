@@ -99,10 +99,17 @@ class KeycloakServiceProvider extends ServiceProvider
             $socialite->extend('keycloak', function (Container $app) use ($socialite): KeycloakProvider {
                 $config = $app->make(Config::class);
 
+                // redirect_uri из маршрута auth.callback: при web.routes = false
+                // проект регистрирует его сам и может положить по другому пути.
+                // Без именованного маршрута: {prefix}/callback
+                $redirect = $app->make('router')->has('auth.callback')
+                    ? route('auth.callback')
+                    : url('/'.trim((string) $config->get('keycloak.web.prefix'), '/').'/callback');
+
                 $settings = [
                     'client_id' => $config->get('keycloak.client_id'),
                     'client_secret' => $config->get('keycloak.client_secret'),
-                    'redirect' => '/'.trim((string) $config->get('keycloak.web.prefix'), '/').'/callback',
+                    'redirect' => $redirect,
                 ];
 
                 /** @var KeycloakProvider $provider */
@@ -112,7 +119,7 @@ class KeycloakServiceProvider extends ServiceProvider
                 return $provider->setConfig(new ProviderConfig(
                     $settings['client_id'],
                     $settings['client_secret'],
-                    url($settings['redirect']),
+                    $settings['redirect'],
                     [
                         'base_url' => $config->get('keycloak.base_url'),
                         'realms' => $config->get('keycloak.realm'),

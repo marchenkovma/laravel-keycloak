@@ -38,12 +38,19 @@ it('registers the keycloak Socialite driver from config/keycloak.php', function 
 });
 
 it('reads the config when the driver is built, not at boot', function () {
-    config(['keycloak.realm' => 'other', 'keycloak.web.prefix' => 'sso']);
+    config(['keycloak.realm' => 'other']);
 
     $url = Socialite::driver('keycloak')->stateless()->redirect()->getTargetUrl();
 
-    expect($url)->toStartWith('https://keycloak.test/realms/other/')
-        ->and($url)->toContain('redirect_uri='.urlencode(url('/sso/callback')));
+    expect($url)->toStartWith('https://keycloak.test/realms/other/');
+});
+
+it('takes redirect_uri from the registered auth.callback route, not from web.prefix at build time', function () {
+    config(['keycloak.web.prefix' => 'sso']);
+
+    $url = Socialite::driver('keycloak')->stateless()->redirect()->getTargetUrl();
+
+    expect($url)->toContain('redirect_uri='.urlencode(url('/auth/callback')));
 });
 
 it('does not need services.keycloak', function () {

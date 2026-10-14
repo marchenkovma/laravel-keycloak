@@ -46,6 +46,12 @@ class KeycloakController
 
     public function callback(Request $request): SymfonyRedirectResponse
     {
+        // Keycloak вернул error вместо code (пользователь отменил вход, прервал
+        // required action): обмен кода на токен не состоится, Socialite не нужен
+        if ($request->filled('error') || ! $request->filled('code')) {
+            return $this->failed('login_failed');
+        }
+
         /** @var KeycloakProvider $driver */
         $driver = Socialite::driver('keycloak');
 
@@ -54,9 +60,7 @@ class KeycloakController
         } catch (InvalidStateException) {
             // state из ответа Keycloak не нашёлся в сессии: форму входа
             // держали открытой дольше жизни сессии или обновили callback
-            return redirect()
-                ->route($this->stringConfig('web.redirects.on_failure') ?: $this->stringConfig('web.redirects.after_logout'))
-                ->with('auth_notice', 'session_expired');
+            return $this->failed('session_expired');
         }
 
         $claims = $oidcUser->getRaw();
@@ -115,6 +119,14 @@ class KeycloakController
         ]);
 
         return redirect()->intended(route($this->stringConfig('web.redirects.after_login')));
+    }
+
+    // Страница on_failure, без неё after_logout, с flash auth_notice для текста причины
+    private function failed(string $notice): RedirectResponse
+    {
+        return redirect()
+            ->route($this->stringConfig('web.redirects.on_failure') ?: $this->stringConfig('web.redirects.after_logout'))
+            ->with('auth_notice', $notice);
     }
 
     private function stringConfig(string $key): string

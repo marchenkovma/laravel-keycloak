@@ -29,7 +29,8 @@ class Keycloak
     {
         $role = $this->app->make('session')->get('keycloak.role');
 
-        return is_string($role) ? $role : null;
+        // Пустая строка (например, KEYCLOAK_BYPASS_ROLE=) ролью не считается
+        return is_string($role) && $role !== '' ? $role : null;
     }
 
     /**
@@ -53,6 +54,11 @@ class Keycloak
     {
         /** @var array<string, array{groups?: list<string>, client_roles?: list<string>}> $roles */
         $roles = $this->config->get('keycloak.web.roles', []);
+
+        // Claims приходят из userinfo как есть: не строки (вложенный объект
+        // от нестандартного mapper-а) уронили бы array_intersect
+        $groups = array_filter($groups, 'is_string');
+        $clientRoles = array_filter($clientRoles, 'is_string');
 
         foreach ($roles as $role => $rule) {
             if (array_intersect($rule['groups'] ?? [], $groups) !== []
@@ -97,8 +103,8 @@ class Keycloak
 
     /**
      * Токен client credentials для исходящих запросов, из кеша или свежий.
-     * Без аргументов: keycloak.client_credentials, иначе client_id и
-     * client_secret из корня конфига.
+     * Пара id и секрет целиком из одного источника: аргументы, иначе
+     * keycloak.client_credentials, иначе client_id и client_secret из корня.
      *
      * @throws ServiceTokenException
      */
