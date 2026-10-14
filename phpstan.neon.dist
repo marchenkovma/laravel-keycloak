@@ -4,4 +4,7 @@ parameters:
         - src
         - config
         - routes
+    # env() разрешён в конфиге пакета, а не только в config/ приложения Testbench
+    configDirectories:
+        - config
     tmpDir: build/phpstan
