@@ -13,6 +13,8 @@ use Orchestra\Testbench\TestCase as Orchestra;
 use SocialiteProviders\Manager\ServiceProvider as SocialiteProvidersServiceProvider;
 use Workbench\App\Models\User;
 
+use function Orchestra\Testbench\workbench_path;
+
 abstract class TestCase extends Orchestra
 {
     use InteractsWithKeycloak;
@@ -31,12 +33,20 @@ abstract class TestCase extends Orchestra
     protected function defineEnvironment($app): void
     {
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
+
+        // Testbench читает workbench/.env и в тестах. Тесты от него не зависят:
+        // файловая база демо ломается от параллельных процессов, файловый кеш
+        // переносил бы JWKS и замок перечитывания из теста в тест
+        $app['config']->set('database.default', 'testing');
+        $app['config']->set('cache.default', 'array');
+        $app['config']->set('session.driver', 'array');
         $app['config']->set('auth.providers.users.model', User::class);
 
         $app['config']->set('keycloak.base_url', 'https://keycloak.test');
         $app['config']->set('keycloak.realm', 'corp');
         $app['config']->set('keycloak.client_id', 'employees');
         $app['config']->set('keycloak.client_secret', 'web-secret');
+        $app['config']->set('keycloak.web.bypass', false);
 
         // Роли как в employee-service: admin по группам, user по группе
         $app['config']->set('keycloak.web.roles', [
@@ -47,7 +57,8 @@ abstract class TestCase extends Orchestra
 
     protected function defineDatabaseMigrations(): void
     {
-        $this->loadMigrationsFrom(__DIR__.'/database/migrations');
+        // Те же миграции, что у workbench (testbench.yaml): одно тестовое приложение
+        $this->loadMigrationsFrom(workbench_path('database/migrations'));
     }
 
     protected function defineRoutes($router): void

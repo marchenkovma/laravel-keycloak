@@ -235,6 +235,15 @@ curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 composer test    # Larastan, Pint, type coverage, Pest
 ```
 
+A demo application (workbench) for trying the login by hand:
+
+```bash
+cp workbench/.env.example workbench/.env   # KEYCLOAK_BYPASS=true: sign in without Keycloak
+composer serve                              # http://localhost:8000
+```
+
+To sign in through a real Keycloak, fill in `KEYCLOAK_*` in `workbench/.env`, set `KEYCLOAK_BYPASS=false` and allow the redirect URI `http://localhost:8000/auth/callback` in the client. Demo roles live in `workbench/app/Providers/WorkbenchServiceProvider.php`.
+
 Changes are listed in the [CHANGELOG](CHANGELOG.md).
 
 Found a vulnerability? Do not open a public issue, report it privately: [Report a vulnerability](https://github.com/marchenkovma/laravel-keycloak/security/advisories/new). See the [security policy](.github/SECURITY.md).

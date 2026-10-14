@@ -6,19 +6,13 @@ use Illuminate\Support\ServiceProvider;
 
 class WorkbenchServiceProvider extends ServiceProvider
 {
-    /**
-     * Register services.
-     */
     public function register(): void
     {
-        //
-    }
-
-    /**
-     * Bootstrap services.
-     */
-    public function boot(): void
-    {
-        //
+        // Роли демо: admin по группе или роли клиента, user по группе.
+        // Под свой realm поменяйте пути групп
+        config(['keycloak.web.roles' => [
+            'admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']],
+            'user' => ['groups' => ['/apps/demo/user'], 'client_roles' => ['user']],
+        ]]);
     }
 }

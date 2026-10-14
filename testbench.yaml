@@ -1,7 +1,12 @@
 laravel: '@testbench'
 
+# Мини-приложение для ручной проверки пакета: composer serve.
+# Настройки Keycloak в workbench/.env (образец: workbench/.env.example)
 providers:
-  # - Workbench\App\Providers\WorkbenchServiceProvider
+  - Laravel\Socialite\SocialiteServiceProvider
+  - SocialiteProviders\Manager\ServiceProvider
+  - Marchenkovma\LaravelKeycloak\KeycloakServiceProvider
+  - Workbench\App\Providers\WorkbenchServiceProvider
 
 migrations:
   - workbench/database/migrations
@@ -11,7 +16,8 @@ seeders:
 
 workbench:
   start: '/'
-  install: true
+  # false: без стандартных миграций Testbench, users у workbench свой
+  install: false
   health: false
   discovers:
     web: true
@@ -19,7 +25,7 @@ workbench:
     commands: true
     components: false
     factories: true
-    views: false
+    views: true
   build:
     - asset-publish
     - create-sqlite-db

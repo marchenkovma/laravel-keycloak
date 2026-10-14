@@ -37,10 +37,16 @@ describe('login', function () {
         config(['keycloak.web.bypass' => true]);
         app()->detectEnvironment(fn () => 'production');
 
-        $location = $this->get(route('auth.login'))->headers->get('Location');
+        try {
+            $location = $this->get(route('auth.login'))->headers->get('Location');
 
-        $this->assertGuest();
-        expect($location)->toStartWith('https://keycloak.test/realms/corp/protocol/openid-connect/auth');
+            $this->assertGuest();
+            expect($location)->toStartWith('https://keycloak.test/realms/corp/protocol/openid-connect/auth');
+        } finally {
+            // После теста Testbench откатывает миграции, а в production
+            // migrate:rollback спрашивает подтверждение
+            app()->detectEnvironment(fn () => 'testing');
+        }
     });
 });
 

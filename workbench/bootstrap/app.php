@@ -12,7 +12,8 @@ return Application::configure(basePath: $APP_BASE_PATH ?? default_skeleton_path(
         commands: __DIR__.'/../routes/console.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Гость закрытой страницы уходит на вход через Keycloak
+        $middleware->redirectGuestsTo(fn () => route('auth.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
