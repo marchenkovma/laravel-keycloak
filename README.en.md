@@ -13,7 +13,7 @@
 
 Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE) with the application role in the session, and an API guard that checks service client tokens.
 
-- PHP 8.3+ with the openssl extension, Laravel 12 or 13.
+- PHP 8.3+ with the openssl extension, Laravel 13.
 - The package does not require Sanctum or Inertia.
 
 ## Installation

@@ -80,8 +80,7 @@ describe('callback', function () {
     });
 
     it('creates and updates the user without mass assignment: a guarded or strict model works too', function () {
-        // Как в Laravel 12, где #[Fillable] не читается и модель полностью guarded,
-        // или в проекте с Model::shouldBeStrict()
+        // Как в проекте с Model::shouldBeStrict(), где username не в $fillable
         Model::preventSilentlyDiscardingAttributes();
         fakeKeycloakUser(groups: ['/apps/employees/user']);
 

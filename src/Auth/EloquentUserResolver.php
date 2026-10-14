@@ -56,8 +56,8 @@ class EloquentUserResolver implements ResolvesKeycloakUser
         }
 
         // Без firstOrNew: он заполняет новую модель через fill, а username
-        // в $fillable проекта обычно нет. Полностью guarded модель (Laravel 12
-        // без #[Fillable]) или Model::shouldBeStrict() бросили бы исключение
+        // в $fillable проекта обычно нет. Полностью guarded модель или
+        // Model::shouldBeStrict() бросили бы MassAssignmentException
         /** @var Model&Authenticatable $model */
         $model = $class::query()->where('username', $username)->first() ?? new $class;
 
