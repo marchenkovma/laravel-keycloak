@@ -63,7 +63,7 @@ The package registers these routes with the `web` middleware:
 
 The prefix is set in `keycloak.web.prefix`. In the Keycloak client, allow the redirect URI `https://<app>/auth/callback` and a post logout redirect URI pointing to the after-logout page.
 
-To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Web\KeycloakController` (`login`, `callback`, `logout`).
+To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (`login`, `callback`, `logout`).
 
 ### Roles
 

@@ -63,7 +63,7 @@ Keycloak с сертификатом корпоративного CA: корне
 
 Префикс задаётся в `keycloak.web.prefix`. В клиенте Keycloak разрешите redirect URI `https://<приложение>/auth/callback` и post logout redirect URI на страницу после выхода.
 
-Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Web\KeycloakController` (методы `login`, `callback`, `logout`).
+Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (методы `login`, `callback`, `logout`).
 
 ### Роли
 

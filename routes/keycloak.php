@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
-use Marchenkovma\LaravelKeycloak\Web\KeycloakController;
+use Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController;
 
 // OIDC-флоу вне auth: сюда попадают гости. Имена auth.*, как в проектах
 Route::middleware(config('keycloak.web.middleware'))

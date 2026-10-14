@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Marchenkovma\LaravelKeycloak\Web;
+namespace Marchenkovma\LaravelKeycloak\Auth;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Config\Repository as Config;

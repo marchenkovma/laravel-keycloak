@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Marchenkovma\LaravelKeycloak\Web;
+namespace Marchenkovma\LaravelKeycloak\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

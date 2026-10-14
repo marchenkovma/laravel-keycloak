@@ -14,9 +14,9 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 use Laravel\Socialite\SocialiteManager;
 use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
+use Marchenkovma\LaravelKeycloak\Auth\EloquentUserResolver;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
-use Marchenkovma\LaravelKeycloak\Web\EloquentUserResolver;
-use Marchenkovma\LaravelKeycloak\Web\EnsureKeycloakRole;
+use Marchenkovma\LaravelKeycloak\Http\Middleware\EnsureKeycloakRole;
 use SocialiteProviders\Keycloak\Provider as KeycloakProvider;
 use SocialiteProviders\Manager\Config as ProviderConfig;
 
