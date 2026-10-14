@@ -166,6 +166,19 @@ it('новый kid после ротации: JWKS перечитан, запр�
     expect(jwksRequests())->toBe(2);
 });
 
+it('JWKS недоступен при ротации: следующий запрос перечитывает снова, а не ждёт минуту', function () {
+    ping(signedToken($this->key))->assertOk();
+
+    $rotated = rsaKey('k2');
+    $this->jwks = null;
+    ping(signedToken($rotated))->assertUnauthorized();
+
+    $this->jwks = [$rotated['jwk']];
+    ping(signedToken($rotated))->assertOk();
+
+    expect(jwksRequests())->toBe(3);
+});
+
 it('мусорный kid перечитывает JWKS не чаще раза в минуту', function () {
     ping(signedToken($this->key))->assertOk();
 

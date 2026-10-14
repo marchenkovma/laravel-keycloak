@@ -29,18 +29,26 @@ class ServiceToken
     ) {}
 
     /**
-     * Учётные данные: аргументы, иначе keycloak.client_credentials,
-     * иначе client_id и client_secret из корня конфига.
+     * Учётные данные парой из одного источника: аргументы, иначе
+     * keycloak.client_credentials, иначе client_id и client_secret из корня
+     * конфига. Половина пары не дополняется из следующего источника: id
+     * одного клиента ушёл бы с секретом другого.
      *
      * @throws ServiceTokenException
      */
     public function get(?string $clientId = null, ?string $clientSecret = null): string
     {
-        $clientId ??= $this->string('client_credentials.client_id') ?? $this->string('client_id');
-        $clientSecret ??= $this->string('client_credentials.client_secret') ?? $this->string('client_secret');
+        [$clientId, $clientSecret] = match (true) {
+            $clientId !== null || $clientSecret !== null => [$clientId, $clientSecret],
+            $this->string('client_credentials.client_id') !== null || $this->string('client_credentials.client_secret') !== null => [
+                $this->string('client_credentials.client_id'),
+                $this->string('client_credentials.client_secret'),
+            ],
+            default => [$this->string('client_id'), $this->string('client_secret')],
+        };
 
         if ($clientId === null || $clientSecret === null) {
-            throw new ServiceTokenException('Keycloak: для client credentials не заданы client_id и client_secret.');
+            throw new ServiceTokenException('Keycloak: для client credentials нужны client_id и client_secret вместе, из одного источника.');
         }
 
         $cacheKey = 'keycloak:service-token:'.hash('sha256', $this->tokenUrl().'|'.$clientId);

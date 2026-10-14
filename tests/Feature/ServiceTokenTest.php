@@ -52,6 +52,23 @@ it('аргументы перекрывают конфиг', function () {
     Http::assertSent(fn (HttpRequest $request) => $request['client_id'] === 'reports-api' && $request['client_secret'] === 'reports-secret');
 });
 
+it('client_id без секрета в client_credentials: исключение, а не секрет веб-клиента', function () {
+    config(['keycloak.client_credentials' => ['client_id' => 'portguard-api', 'client_secret' => null]]);
+    Http::fake();
+
+    expect(fn () => Keycloak::serviceToken())->toThrow(ServiceTokenException::class, 'client_secret');
+
+    Http::assertNothingSent();
+});
+
+it('client_id аргументом без секрета: исключение, секрет из конфига не подставляется', function () {
+    Http::fake();
+
+    expect(fn () => Keycloak::serviceToken('reports-api'))->toThrow(ServiceTokenException::class);
+
+    Http::assertNothingSent();
+});
+
 it('кеширует токен: повторный вызов не ходит в Keycloak', function () {
     fakeTokenEndpoint();
 

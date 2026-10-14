@@ -52,6 +52,12 @@ class TokenVerifier
         if ($keys !== null && ! isset($keys[$kid])
             && $this->cache->add($this->cacheKey('refetch'), true, self::REFETCH_INTERVAL)) {
             $keys = $this->keys(refresh: true);
+
+            // Keycloak не ответил: замок снимается, иначе при ротации ключей
+            // новые токены отклонялись бы минуту без повторной попытки
+            if ($keys === null) {
+                $this->cache->forget($this->cacheKey('refetch'));
+            }
         }
 
         if ($keys === null) {
@@ -210,10 +216,21 @@ class TokenVerifier
             return null;
         }
 
-        $this->cache->put($this->cacheKey('jwks'), $jwks, (int) $this->config->get('keycloak.api.jwks_cache_ttl', 3600));
-
         /** @var list<array<string, mixed>> $jwks */
+        $this->cacheJwks($jwks);
+
         return $jwks;
+    }
+
+    /**
+     * Ключи в кеш в обход Keycloak: так трейт InteractsWithKeycloak подсовывает
+     * тестовый ключ. false, если хранилище кеша значения не держит.
+     *
+     * @param  list<array<string, mixed>>  $jwks
+     */
+    public function cacheJwks(array $jwks): bool
+    {
+        return $this->cache->put($this->cacheKey('jwks'), $jwks, (int) $this->config->get('keycloak.api.jwks_cache_ttl', 3600));
     }
 
     private function reject(string $jwt, string $kid, string $reason): void

@@ -6,7 +6,6 @@ namespace Marchenkovma\LaravelKeycloak\Testing;
 
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Support\Facades\Http;
 use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
 use RuntimeException;
 
@@ -14,8 +13,9 @@ use RuntimeException;
  * Помощники для тестов проектов (подключается в TestCase проекта).
  *
  * withKeycloakToken() шлёт запрос с настоящим RS256-токеном: ключ
- * генерируется в тесте, JWKS подменяется через Http::fake, так что guard
- * keycloak проверяет токен полностью, без Keycloak.
+ * генерируется в тесте, его JWKS кладётся в кеш, откуда guard keycloak
+ * берёт ключи. Guard проверяет токен полностью, в сеть не ходит, и
+ * Http::fake проекта ему не мешает.
  */
 trait InteractsWithKeycloak
 {
@@ -48,6 +48,11 @@ trait InteractsWithKeycloak
         $key = $this->keycloakTestKey();
         $verifier = app(TokenVerifier::class);
 
+        // При каждом токене заново: Cache::flush() в тесте ключ не потеряет
+        if (! $verifier->cacheJwks([$key['jwk']])) {
+            throw new RuntimeException('Keycloak test token: the cache store does not keep values. Use the array cache driver in tests (CACHE_STORE=array).');
+        }
+
         $payload = array_filter([
             'iss' => $verifier->issuer(),
             'aud' => config('keycloak.api.audience'),
@@ -71,8 +76,7 @@ trait InteractsWithKeycloak
     }
 
     /**
-     * Пара RSA на тест и JWKS с её публичной частью. Http::fake вызывается
-     * один раз: каждый вызов сбрасывает записанные запросы.
+     * Пара RSA на тест и JWK её публичной части.
      *
      * @return array{kid: string, private: string, jwk: array<string, string>}
      */
@@ -98,10 +102,6 @@ trait InteractsWithKeycloak
                 'e' => JWT::urlsafeB64Encode($details['rsa']['e']),
             ],
         ];
-
-        Http::fake([
-            app(TokenVerifier::class)->jwksUrl() => Http::response(['keys' => [$this->keycloakTestKey['jwk']]]),
-        ]);
 
         return $this->keycloakTestKey;
     }
