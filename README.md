@@ -13,13 +13,21 @@
 
 Keycloak для Laravel: вход пользователей через OIDC (Authorization Code + PKCE) с ролью приложения в сессии и guard для API, который проверяет токены сервисных клиентов.
 
-- PHP 8.3+, Laravel 12 или 13.
+- PHP 8.3+ с расширением openssl, Laravel 12 или 13.
 - Sanctum и Inertia пакету не нужны.
 
 ## Установка
 
 ```bash
 composer require marchenkovma/laravel-keycloak
+```
+
+Пока пакета нет на Packagist, подключите репозиторий в `composer.json` проекта:
+
+```json
+"repositories": [
+    {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
+]
 ```
 
 Провайдер и фасад `Keycloak` подключаются автоматически. Драйвер `keycloak` для Socialite пакет регистрирует сам, поэтому:
@@ -47,7 +55,7 @@ KEYCLOAK_BYPASS=false
 KEYCLOAK_BYPASS_ROLE=admin
 ```
 
-`KEYCLOAK_BASE_URL` это адрес, по которому приложение ходит в Keycloak. Он может быть внутренним.
+`KEYCLOAK_BASE_URL` задаёт адрес, по которому приложение ходит в Keycloak. Он может быть внутренним.
 
 Keycloak с сертификатом корпоративного CA: корневой сертификат должен быть доверенным в контейнере приложения, пакет его не настраивает.
 
@@ -61,9 +69,22 @@ Keycloak с сертификатом корпоративного CA: корне
 | GET | `/auth/callback` | `auth.callback` |
 | POST | `/auth/logout` | `auth.logout` |
 
-Префикс задаётся в `keycloak.web.prefix`. В клиенте Keycloak разрешите redirect URI `https://<приложение>/auth/callback` и post logout redirect URI на страницу после выхода.
+Префикс задаётся в `keycloak.web.prefix`.
 
 Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (методы `login`, `callback`, `logout`).
+
+### Настройка клиента для входа
+
+1. Клиент приложения (например, `employees`):
+   - Client authentication ON (confidential), Standard flow ON;
+   - в Advanced: Proof Key for Code Exchange Code Challenge Method = S256;
+   - Valid redirect URIs: `https://<приложение>/auth/callback`;
+   - Valid post logout redirect URIs: адрес страницы после выхода (`after_logout`).
+2. Mapper-ы на клиенте или в его dedicated scope. Socialite читает claims из userinfo, поэтому у обоих включён **Add to userinfo**:
+   - Group Membership: Token Claim Name `groups`, Full group path ON;
+   - User Client Role: Client ID = этот клиент, Token Claim Name `roles`, Multivalued ON.
+
+Без Add to userinfo групп и ролей в ответе нет, и любой вход закончится 403.
 
 ### Роли
 
@@ -193,7 +214,7 @@ Route::middleware('auth:keycloak,sanctum')->group(...);
 - `iss`, `aud` содержит `KEYCLOAK_API_AUDIENCE`, `azp` из `KEYCLOAK_API_CLIENTS`;
 - `exp` обязателен, `exp` и `nbf` проверяются с допуском 30 с (`keycloak.api.leeway`).
 
-Если Keycloak недоступен, guard отвечает 401 и пишет warning в лог. При отказе по токену в лог идёт info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
+Если Keycloak недоступен, запрос получает 401, а в лог пишется warning. При отказе по токену в лог идёт info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
 
 Пользователь guard-а: `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`.
 
@@ -246,6 +267,32 @@ TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d c
   https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
 curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
+
+## Тесты в проекте
+
+Трейт `InteractsWithKeycloak` подключается в `TestCase` проекта:
+
+```php
+use Marchenkovma\LaravelKeycloak\Testing\InteractsWithKeycloak;
+
+abstract class TestCase extends BaseTestCase
+{
+    use InteractsWithKeycloak;
+}
+```
+
+```php
+// API: настоящий RS256-токен, guard проверяет его полностью, без Keycloak
+$this->withKeycloakToken()->getJson('/api/v1/departments')->assertOk();
+$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')->assertUnauthorized();
+
+// Вход пользователя с ролью в сессии, без Socialite
+$this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
+```
+
+- `withKeycloakToken()` генерирует ключ RSA и подменяет JWKS через `Http::fake`. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
+- `keycloakToken($claims)` отдаёт сам токен, например для своих заголовков.
+- Несколько запросов в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя.
 
 ## Разработка
 

@@ -13,13 +13,21 @@
 
 Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE) with the application role in the session, and an API guard that checks service client tokens.
 
-- PHP 8.3+, Laravel 12 or 13.
+- PHP 8.3+ with the openssl extension, Laravel 12 or 13.
 - The package does not require Sanctum or Inertia.
 
 ## Installation
 
 ```bash
 composer require marchenkovma/laravel-keycloak
+```
+
+While the package is not on Packagist, add the repository to the project `composer.json`:
+
+```json
+"repositories": [
+    {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
+]
 ```
 
 The service provider and the `Keycloak` facade are auto-discovered. The package registers the `keycloak` Socialite driver itself, so:
@@ -61,9 +69,22 @@ The package registers these routes with the `web` middleware:
 | GET | `/auth/callback` | `auth.callback` |
 | POST | `/auth/logout` | `auth.logout` |
 
-The prefix is set in `keycloak.web.prefix`. In the Keycloak client, allow the redirect URI `https://<app>/auth/callback` and a post logout redirect URI pointing to the after-logout page.
+The prefix is set in `keycloak.web.prefix`.
 
 To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (`login`, `callback`, `logout`).
+
+### Client setup for login
+
+1. The application client (e.g. `employees`):
+   - Client authentication ON (confidential), Standard flow ON;
+   - in Advanced: Proof Key for Code Exchange Code Challenge Method = S256;
+   - Valid redirect URIs: `https://<app>/auth/callback`;
+   - Valid post logout redirect URIs: the after-logout page (`after_logout`).
+2. Mappers on the client or its dedicated scope. Socialite reads claims from userinfo, so both need **Add to userinfo** on:
+   - Group Membership: Token Claim Name `groups`, Full group path ON;
+   - User Client Role: Client ID = this client, Token Claim Name `roles`, Multivalued ON.
+
+Without Add to userinfo the response has no groups and roles, and every login ends with 403.
 
 ### Roles
 
@@ -193,7 +214,7 @@ What is checked:
 - `iss`, `aud` contains `KEYCLOAK_API_AUDIENCE`, `azp` is in `KEYCLOAK_API_CLIENTS`;
 - `exp` is required, `exp` and `nbf` allow 30 s of clock skew (`keycloak.api.leeway`).
 
-If Keycloak is unreachable: 401 and a warning in the log. A rejected token: info with `kid`, `iss`, `azp` and the reason. The token itself is never logged.
+If Keycloak is unreachable, the request gets a 401 and a warning goes to the log. A rejected token: info with `kid`, `iss`, `azp` and the reason. The token itself is never logged.
 
 The guard user is `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`:
 
@@ -246,6 +267,32 @@ TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d c
   https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
 curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
+
+## Testing in the application
+
+Add the `InteractsWithKeycloak` trait to the application `TestCase`:
+
+```php
+use Marchenkovma\LaravelKeycloak\Testing\InteractsWithKeycloak;
+
+abstract class TestCase extends BaseTestCase
+{
+    use InteractsWithKeycloak;
+}
+```
+
+```php
+// API: a real RS256 token, fully checked by the guard, no Keycloak needed
+$this->withKeycloakToken()->getJson('/api/v1/departments')->assertOk();
+$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')->assertUnauthorized();
+
+// Sign a user in with a role in the session, no Socialite
+$this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
+```
+
+- `withKeycloakToken()` generates an RSA key and fakes the JWKS with `Http::fake`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
+- `keycloakToken($claims)` returns the token itself, e.g. for custom headers.
+- Several requests in one test work: before each one the trait drops the user remembered by the guard.
 
 ## Development
 
