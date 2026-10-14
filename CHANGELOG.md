@@ -4,8 +4,6 @@
 
 ## [v0.1.0](https://github.com/marchenkovma/laravel-keycloak/releases/tag/v0.1.0) - 2026-10-14
 
-Первая версия: общий код входа через Keycloak для employee-service и portguard.
-
 Требования: PHP 8.4+ с расширением openssl, Laravel 13.
 
 ### Вход пользователей
