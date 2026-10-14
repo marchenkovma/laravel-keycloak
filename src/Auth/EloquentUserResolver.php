@@ -55,11 +55,12 @@ class EloquentUserResolver implements ResolvesKeycloakUser
             throw new UnexpectedValueException('auth.providers.users.model must be an Eloquent model implementing Authenticatable.');
         }
 
+        // Без firstOrNew: он заполняет новую модель через fill, а username
+        // в $fillable проекта обычно нет. Полностью guarded модель (Laravel 12
+        // без #[Fillable]) или Model::shouldBeStrict() бросили бы исключение
         /** @var Model&Authenticatable $model */
-        $model = $class::query()->firstOrNew(['username' => $username]);
+        $model = $class::query()->where('username', $username)->first() ?? new $class;
 
-        // username тоже через forceFill: firstOrNew заполняет новую модель
-        // через fill, и без $fillable ключ отбросился бы
         $model->forceFill(['username' => $username, ...$attributes, 'last_login_at' => now()])->save();
 
         return $model;

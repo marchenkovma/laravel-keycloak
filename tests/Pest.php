@@ -49,7 +49,8 @@ function staleKeycloakState(): void
 
 function keycloakTestUser(string $username = 'test'): Authenticatable
 {
-    $user = User::query()->firstOrNew(['username' => $username]);
+    // Без firstOrNew: в Laravel 12 модель workbench полностью guarded
+    $user = User::query()->where('username', $username)->first() ?? new User;
     $user->forceFill(['username' => $username, 'name' => 'Тестовый Пользователь', 'email' => "{$username}@example.com"])->save();
 
     return $user;

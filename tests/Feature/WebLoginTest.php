@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\Facades\Socialite;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
@@ -76,6 +77,25 @@ describe('callback', function () {
             ->and($user->name)->toBe('Иван Иванов')
             ->and($user->email)->toBe('ivanov@example.com')
             ->and($user->last_login_at)->not->toBeNull();
+    });
+
+    it('creates and updates the user without mass assignment: a guarded or strict model works too', function () {
+        // Как в Laravel 12, где #[Fillable] не читается и модель полностью guarded,
+        // или в проекте с Model::shouldBeStrict()
+        Model::preventSilentlyDiscardingAttributes();
+        fakeKeycloakUser(groups: ['/apps/employees/user']);
+
+        try {
+            $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+            expect(User::sole()->username)->toBe('ivanov');
+
+            app('auth')->forgetGuards();
+            $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+            expect(User::count())->toBe(1)
+                ->and(keycloakTestUser()->username)->toBe('test');
+        } finally {
+            Model::preventSilentlyDiscardingAttributes(false);
+        }
     });
 
     it('a repeated login updates the user instead of creating a new one', function () {
