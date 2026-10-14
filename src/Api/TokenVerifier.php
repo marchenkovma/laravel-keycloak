@@ -16,7 +16,7 @@ use Throwable;
 /**
  * Проверка access-токенов сервисных клиентов Keycloak (client credentials).
  *
- * На любой отказ — null, а не исключение: при auth:keycloak,sanctum guard
+ * На любой отказ возвращается null, а не исключение: при auth:keycloak,sanctum guard
  * keycloak должен уступить токен следующему guard-у. Сам токен не логируется.
  */
 class TokenVerifier
@@ -45,7 +45,7 @@ class TokenVerifier
 
         $keys = $this->keys();
 
-        // Неизвестный kid — ротация ключей в Keycloak. Замок через add():
+        // Неизвестный kid означает ротацию ключей в Keycloak. Замок через add():
         // мусорный kid не дёргает Keycloak чаще раза в минуту
         if ($keys !== null && ! isset($keys[$kid])
             && $this->cache->add($this->cacheKey('refetch'), true, self::REFETCH_INTERVAL)) {

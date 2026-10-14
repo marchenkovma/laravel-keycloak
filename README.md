@@ -47,7 +47,7 @@ KEYCLOAK_BYPASS=false
 KEYCLOAK_BYPASS_ROLE=admin
 ```
 
-`KEYCLOAK_BASE_URL` — адрес, по которому приложение ходит в Keycloak. Он может быть внутренним.
+`KEYCLOAK_BASE_URL` это адрес, по которому приложение ходит в Keycloak. Он может быть внутренним.
 
 Keycloak с сертификатом корпоративного CA: корневой сертификат должен быть доверенным в контейнере приложения, пакет его не настраивает.
 
@@ -69,8 +69,8 @@ Keycloak с сертификатом корпоративного CA: корне
 
 Роль приложения определяется при входе и хранится в сессии до выхода. Правила перечисляются по приоритету, берётся первая совпавшая:
 
-- `groups` — полные пути групп (claim `groups`, mapper с включённым Full group path);
-- `client_roles` — роли клиента (claim `roles`).
+- `groups`: полные пути групп (claim `groups`, mapper с включённым Full group path);
+- `client_roles`: роли клиента (claim `roles`).
 
 ```php
 // config/keycloak.php
@@ -105,14 +105,14 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // только
 'redirects' => [
     'after_login' => 'home',    // имя маршрута; redirect()->intended() поверх
     'after_logout' => 'home',
-    'on_failure' => null,       // устаревший state при входе; null — на after_logout
+    'on_failure' => null,       // устаревший state при входе; null: на after_logout
 ],
 ```
 
 В сессии остаётся flash `auth_notice`, по которому страница может объяснить, что произошло:
 
-- `session_expired` — форма входа провисела дольше жизни сессии;
-- `signed_out` — пользователь вышел.
+- `session_expired`: форма входа провисела дольше жизни сессии;
+- `signed_out`: пользователь вышел.
 
 Выход идёт на end_session Keycloak с `id_token_hint`. Для Inertia-запроса (заголовок `X-Inertia`) пакет отвечает `409` с `X-Inertia-Location`, иначе обычным redirect.
 
@@ -159,7 +159,7 @@ php artisan vendor:publish --tag=keycloak-lang
 
 ## API: токены сервисных клиентов
 
-Guard `keycloak` проверяет `Authorization: Bearer <jwt>` — access-токен клиента Keycloak, полученный по client credentials. Подключите guard в `config/auth.php`:
+Guard `keycloak` проверяет `Authorization: Bearer <jwt>`, то есть access-токен клиента Keycloak, полученный по client credentials. Подключите guard в `config/auth.php`:
 
 ```php
 'guards' => [
@@ -171,11 +171,11 @@ Guard `keycloak` проверяет `Authorization: Bearer <jwt>` — access-т�
 ```dotenv
 KEYCLOAK_API_AUDIENCE=employee-service      # aud, который должен быть в токене
 KEYCLOAK_API_CLIENTS=portguard-api,other    # разрешённые azp через запятую
-KEYCLOAK_ISSUER=                             # пусто — {KEYCLOAK_BASE_URL}/realms/{realm}
+KEYCLOAK_ISSUER=                             # пусто: {KEYCLOAK_BASE_URL}/realms/{realm}
 KEYCLOAK_JWKS_CACHE_TTL=3600
 ```
 
-`KEYCLOAK_ISSUER` нужен, если приложение ходит в Keycloak по внутреннему адресу. `iss` в токене — публичный адрес, по которому токен выдан, а ключи (JWKS) берутся по `KEYCLOAK_BASE_URL`.
+`KEYCLOAK_ISSUER` нужен, если приложение ходит в Keycloak по внутреннему адресу. `iss` в токене содержит публичный адрес, по которому токен выдан, а ключи (JWKS) берутся по `KEYCLOAK_BASE_URL`.
 
 ```php
 // только Keycloak
@@ -191,11 +191,11 @@ Route::middleware('auth:keycloak,sanctum')->group(...);
 
 - подпись RS256 по JWKS realm-а (`none` и HS* отвергаются). Ключи кешируются, неизвестный `kid` перечитывает JWKS (ротация), но не чаще раза в минуту;
 - `iss`, `aud` содержит `KEYCLOAK_API_AUDIENCE`, `azp` из `KEYCLOAK_API_CLIENTS`;
-- `exp` обязателен, `exp` и `nbf` — с допуском 30 с (`keycloak.api.leeway`).
+- `exp` обязателен, `exp` и `nbf` проверяются с допуском 30 с (`keycloak.api.leeway`).
 
-Keycloak недоступен — 401 и warning в логе. Отказ по токену — info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
+Если Keycloak недоступен, guard отвечает 401 и пишет warning в лог. При отказе по токену в лог идёт info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
 
-Пользователь guard-а — `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`:
+Пользователь guard-а: `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`.
 
 ```php
 $client = $request->user();
@@ -206,7 +206,7 @@ $client->hasRole('employee-service', 'read'); // роль из resource_access
 $client->hasScope('email');
 ```
 
-Свой класс вместо него — в `AppServiceProvider::boot()`:
+Свой класс вместо него задаётся в `AppServiceProvider::boot()`:
 
 ```php
 Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $claims['azp']]));
@@ -235,9 +235,9 @@ curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 composer test    # Larastan, Pint, покрытие типов, Pest
 ```
 
-Изменения — в [CHANGELOG](CHANGELOG.md).
+Изменения описаны в [CHANGELOG](CHANGELOG.md).
 
-Нашли уязвимость? Не пишите в открытый issue, сообщите приватно: [Report a vulnerability](https://github.com/marchenkovma/laravel-keycloak/security/advisories/new). Подробнее — в [политике безопасности](.github/SECURITY.md).
+Нашли уязвимость? Не пишите в открытый issue, сообщите приватно: [Report a vulnerability](https://github.com/marchenkovma/laravel-keycloak/security/advisories/new). Подробнее в [политике безопасности](.github/SECURITY.md).
 
 ## Лицензия
 

@@ -12,7 +12,7 @@ use Workbench\App\Models\User;
 uses(TestCase::class)->in(__DIR__);
 
 /**
- * Socialite — граница с сетью Keycloak, мокается целиком той же цепочкой,
+ * Socialite стоит на границе с сетью Keycloak и мокается целиком той же цепочкой,
  * что в тестах проектов.
  *
  * @param  list<string>  $groups

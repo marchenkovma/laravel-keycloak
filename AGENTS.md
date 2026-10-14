@@ -34,6 +34,10 @@ Conventional Commits, as in employee-service, portguard and geospm:
 - Body in Russian: why the change was made and what is not obvious from the diff. Wrap at about 72 characters.
 - No `Co-Authored-By` trailer.
 
+## Writing style
+
+- Never use the em dash (—) or en dash (–) in code comments, docs, README, commit messages or test names. Rephrase with a colon, a comma, or a separate sentence. A plain hyphen is fine inside words and ranges.
+
 ## Documentation
 
 - `README.md` is Russian, `README.en.md` is its English translation. Change both in the same commit, keep the sections in the same order, and keep the language switch line at the top of each.

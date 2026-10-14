@@ -40,7 +40,7 @@ function rsaKey(string $kid): array
 
 /**
  * @param  array{kid: string, private: string}  $key
- * @param  array<string, mixed>  $claims  null в значении — убрать claim
+ * @param  array<string, mixed>  $claims  null в значении убирает claim
  */
 function signedToken(array $key, array $claims = []): string
 {
@@ -81,7 +81,7 @@ beforeEach(function () {
     $this->key = rsaKey('k1');
 
     // JWKS отдаётся из $this->jwks: тест ротации подменяет ключи на лету,
-    // null — Keycloak недоступен. Рядом ключ шифрования, как отдаёт Keycloak
+    // null значит, что Keycloak недоступен. Рядом ключ шифрования, как отдаёт Keycloak
     $this->jwks = [$this->key['jwk'], ['kid' => 'enc', 'kty' => 'RSA', 'alg' => 'RSA-OAEP', 'use' => 'enc', 'n' => 'xx', 'e' => 'AQAB']];
 
     Http::fake([JWKS_URL => fn () => $this->jwks === null
@@ -116,7 +116,7 @@ function jwksRequests(): int
     return Http::recorded(fn (HttpRequest $request) => $request->url() === JWKS_URL)->count();
 }
 
-it('пускает токен разрешённого клиента, пользователь — KeycloakClient с azp', function () {
+it('пускает токен разрешённого клиента, пользователь KeycloakClient с azp', function () {
     ping(signedToken($this->key))
         ->assertOk()
         ->assertJson(['class' => KeycloakClient::class, 'id' => 'portguard-api']);
@@ -160,7 +160,7 @@ it('отказывает (401)', function (string $jwt) {
 
     ping($jwt)->assertUnauthorized();
 
-    // Отказ по подписи или claims — info с причиной, без самого токена
+    // Отказ по подписи или claims пишется в info с причиной, без самого токена
     Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context) => $message === 'Keycloak: токен API отклонён'
         && $context['kid'] === 'k1'
         && is_string($context['reason'])
@@ -182,7 +182,7 @@ it('отказывает (401)', function (string $jwt) {
     ),
 ]);
 
-it('доверяет только ключам подписи: токен по ключу шифрования (use=enc) — 401', function () {
+it('доверяет только ключам подписи: токен по ключу шифрования (use=enc) получает 401', function () {
     $encryption = rsaKey('enc-real');
     $this->jwks[] = ['use' => 'enc', 'alg' => 'RSA-OAEP'] + $encryption['jwk'];
 
@@ -195,7 +195,7 @@ it('без настроенного audience отказывает всем', fun
     ping(signedToken($this->key))->assertUnauthorized();
 });
 
-it('JWKS недоступен — 401, а не 500, warning без токена', function () {
+it('JWKS недоступен: 401, а не 500, warning без токена', function () {
     $this->jwks = null;
     Log::spy();
 
@@ -237,7 +237,7 @@ it('мусорный kid перечитывает JWKS не чаще раза в
     expect(jwksRequests())->toBe(3);
 });
 
-it('не-JWT токен — null без HTTP-запросов', function (string $token) {
+it('не-JWT токен даёт null без HTTP-запросов', function (string $token) {
     ping($token)->assertUnauthorized();
 
     Http::assertNothingSent();
@@ -247,7 +247,7 @@ it('не-JWT токен — null без HTTP-запросов', function (string
     'без kid' => JWT::urlsafeB64Encode('{"alg":"RS256"}').'.e30.sig',
 ]);
 
-it('без заголовка Authorization — 401 без HTTP-запросов', function () {
+it('без заголовка Authorization 401 без HTTP-запросов', function () {
     $this->getJson('api/ping')->assertUnauthorized();
 
     Http::assertNothingSent();
@@ -266,7 +266,7 @@ describe('уступает очередь следующему guard-у', functi
             ->assertJson(['id' => 'portguard-api']);
     });
 
-    it('битый JWT не роняет запрос, а уступает: other его тоже не знает — 401', function () {
+    it('битый JWT не роняет запрос, а уступает: other его тоже не знает, поэтому 401', function () {
         $this->getJson('api/either', ['Authorization' => 'Bearer '.unsignedToken('none', 'k1')])
             ->assertUnauthorized();
     });

@@ -6,7 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// users как в проектах: без пароля, ключ входа — username из Keycloak
+// users как в проектах: без пароля, ключ входа: username из Keycloak
 return new class extends Migration
 {
     public function up(): void

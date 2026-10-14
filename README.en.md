@@ -69,8 +69,8 @@ To register the routes yourself, set `keycloak.web.routes = false` and point the
 
 The application role is resolved at login and kept in the session until logout. Rules are listed by priority, the first match wins:
 
-- `groups` — full group paths (claim `groups`, mapper with Full group path on);
-- `client_roles` — client roles (claim `roles`).
+- `groups`: full group paths (claim `groups`, mapper with Full group path on);
+- `client_roles`: client roles (claim `roles`).
 
 ```php
 // config/keycloak.php
@@ -111,8 +111,8 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // admin only
 
 The session keeps an `auth_notice` flash so the page can explain what happened:
 
-- `session_expired` — the login form stayed open longer than the session lived;
-- `signed_out` — the user signed out.
+- `session_expired`: the login form stayed open longer than the session lived;
+- `signed_out`: the user signed out.
 
 Logout goes to the Keycloak end_session endpoint with `id_token_hint`. For an Inertia request (`X-Inertia` header) the package responds with `409` and `X-Inertia-Location`, otherwise with a regular redirect.
 

@@ -74,7 +74,7 @@ class Keycloak
     /**
      * Свой пользователь guard-а keycloak вместо KeycloakClient, например
      * несохранённая модель. Замыкание получает проверенные claims токена;
-     * null — отказ (401 или следующий guard).
+     * null означает отказ (401 или следующий guard).
      *
      * @param  Closure(array<string, mixed>): ?Authenticatable  $resolver
      */

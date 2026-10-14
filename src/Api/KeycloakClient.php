@@ -8,7 +8,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
  * Сервисный клиент Keycloak, вошедший в API по токену client credentials.
- * Ничего не хранит в базе: идентификатор — azp, остальное — claims токена.
+ * Ничего не хранит в базе: идентификатор это azp, остальное берётся из claims токена.
  */
 class KeycloakClient implements Authenticatable
 {

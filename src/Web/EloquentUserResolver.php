@@ -12,7 +12,7 @@ use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 use UnexpectedValueException;
 
 /**
- * Пользователь в модели auth.providers.users.model, ключ — username
+ * Пользователь в модели auth.providers.users.model, ключ: username
  * (preferred_username Keycloak). Поля пишутся через forceFill, поэтому
  * $fillable модели не важен.
  */

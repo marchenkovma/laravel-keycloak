@@ -18,7 +18,7 @@ abstract class TestCase extends Orchestra
 
     protected function getPackageProviders($app): array
     {
-        // В проекте Socialite подключится автообнаружением, в Testbench — явно
+        // В проекте Socialite подключится автообнаружением, в Testbench явно
         return [
             SocialiteServiceProvider::class,
             SocialiteProvidersServiceProvider::class,

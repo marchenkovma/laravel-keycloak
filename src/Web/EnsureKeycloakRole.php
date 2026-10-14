@@ -10,8 +10,8 @@ use Marchenkovma\LaravelKeycloak\Keycloak;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * keycloak.role — любая роль приложения; keycloak.role:admin,user — одна
- * из перечисленных. Без роли — 403 с keycloak::messages.denied.
+ * keycloak.role пускает с любой ролью приложения, keycloak.role:admin,user
+ * с одной из перечисленных. Без роли 403 с keycloak::messages.denied.
  */
 class EnsureKeycloakRole
 {

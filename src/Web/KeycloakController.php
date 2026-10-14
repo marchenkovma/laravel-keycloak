@@ -18,7 +18,7 @@ use SocialiteProviders\Keycloak\Provider as KeycloakProvider;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 
 /**
- * OIDC-флоу против Keycloak: приложение — confidential-клиент,
+ * OIDC-флоу против Keycloak: приложение работает как confidential-клиент,
  * Authorization Code + PKCE. Токены в браузер не попадают.
  *
  * Socialite вызывается через фасад цепочкой driver('keycloak')->enablePKCE():
@@ -97,7 +97,7 @@ class KeycloakController
         $url = $driver->getLogoutUrl($afterLogout, $this->stringConfig('client_id'), $idToken);
 
         // Для Inertia не 302: за ним XHR пошёл бы на Keycloak сам и упёрся
-        // в CORS. 409 + X-Inertia-Location — то же, что Inertia::location
+        // в CORS. 409 + X-Inertia-Location делает то же, что Inertia::location
         if ($request->hasHeader('X-Inertia')) {
             return new Response('', 409, ['X-Inertia-Location' => $url]);
         }
