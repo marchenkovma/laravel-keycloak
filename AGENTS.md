@@ -33,3 +33,7 @@ Conventional Commits, as in employee-service, portguard and geospm:
 - Subject: `type(scope): описание` in Russian, no trailing period. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`. Scope is the package area: `web`, `api`, `client`, `config`, `testing`, `release`.
 - Body in Russian: why the change was made and what is not obvious from the diff. Wrap at about 72 characters.
 - No `Co-Authored-By` trailer.
+
+## Documentation
+
+- `README.md` is Russian, `README.en.md` is its English translation. Change both in the same commit, keep the sections in the same order, and keep the language switch line at the top of each.
