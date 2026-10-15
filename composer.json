@@ -1,7 +1,7 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
     "name": "marchenkovma/laravel-keycloak",
-    "description": "Keycloak для Laravel: вход пользователей по OIDC (Authorization Code + PKCE через Socialite), guard API для токенов сервисных клиентов, токены client credentials",
+    "description": "Keycloak for Laravel: user login via OIDC, API guard for service-account tokens, client credentials tokens.",
     "keywords": [
         "laravel",
         "marchenkovma",
