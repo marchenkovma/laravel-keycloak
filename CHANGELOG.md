@@ -1,6 +1,16 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.2.0...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.3.0...HEAD)
+
+## [v0.3.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.2.0...v0.3.0) - 2026-10-15
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13. Несовместимых изменений нет.
+
+### Вход пользователей
+
+- `client_roles` в `keycloak.web.roles` сверяются с ролями клиента `keycloak.client_id` из `resource_access.{client_id}.roles`, стандартного формата Keycloak. Это тот же формат, который в API читает `KeycloakClient::hasRole()`.
+- Плоский claim `roles` работает как раньше: он берётся, если записи клиента в `resource_access` нет.
+- В README обновлена настройка mapper-а ролей: Token Claim Name `resource_access.${client_id}.roles` и Add to userinfo.
 
 ## [v0.2.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.1.0...v0.2.0) - 2026-10-15
 
