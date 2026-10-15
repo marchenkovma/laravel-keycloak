@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Marchenkovma\LaravelKeycloak\Api;
 
-use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
-use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Http\Client\Factory as Http;
 use Marchenkovma\LaravelKeycloak\Keycloak;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -22,14 +18,10 @@ use Throwable;
  */
 class TokenVerifier
 {
-    // Неизвестный kid перечитывает JWKS не чаще раза в эту паузу
-    private const int REFETCH_INTERVAL = 60;
-
     public function __construct(
         private readonly Keycloak $keycloak,
         private readonly Config $config,
-        private readonly Cache $cache,
-        private readonly Http $http,
+        private readonly SigningKeys $keys,
         private readonly LoggerInterface $log,
     ) {}
 
@@ -45,27 +37,10 @@ class TokenVerifier
             return null;
         }
 
-        $keys = $this->keys();
+        $key = $this->keys->find($kid);
 
-        // Неизвестный kid означает ротацию ключей в Keycloak. Замок через add():
-        // мусорный kid не дёргает Keycloak чаще раза в минуту
-        if ($keys !== null && ! isset($keys[$kid])
-            && $this->cache->add($this->cacheKey('refetch'), true, self::REFETCH_INTERVAL)) {
-            $keys = $this->keys(refresh: true);
-
-            // Keycloak не ответил: замок снимается, иначе при ротации ключей
-            // новые токены отклонялись бы минуту без повторной попытки
-            if ($keys === null) {
-                $this->cache->forget($this->cacheKey('refetch'));
-            }
-        }
-
-        if ($keys === null) {
-            return null;
-        }
-
-        if (! isset($keys[$kid])) {
-            $this->reject($jwt, $kid, 'unknown kid');
+        if ($key === null) {
+            $this->reject($jwt, $kid, 'no signing key for kid');
 
             return null;
         }
@@ -73,7 +48,7 @@ class TokenVerifier
         try {
             // Глобальная статика php-jwt: ставить перед каждым decode
             JWT::$leeway = (int) $this->config->get('keycloak.api.leeway', 30);
-            $claims = (array) JWT::decode($jwt, $keys);
+            $claims = (array) JWT::decode($jwt, $key);
         } catch (Throwable $e) {
             $this->reject($jwt, $kid, $e->getMessage());
 
@@ -92,27 +67,19 @@ class TokenVerifier
         return json_decode((string) json_encode($claims), true);
     }
 
-    public function issuer(): string
-    {
-        $issuer = $this->config->get('keycloak.api.issuer');
-
-        return is_string($issuer) && $issuer !== '' ? $issuer : $this->keycloak->realmUrl();
-    }
-
-    public function jwksUrl(): string
-    {
-        return $this->keycloak->realmUrl().'/protocol/openid-connect/certs';
-    }
-
     /**
-     * @return list<string>
+     * Claims, с которыми токен пройдёт проверку: iss, aud и первый из
+     * разрешённых azp. По ним трейт InteractsWithKeycloak собирает тестовый токен.
+     *
+     * @return array{iss: string, aud: string|null, azp: string|null}
      */
-    public function clients(): array
+    public function acceptedClaims(): array
     {
-        $clients = $this->config->get('keycloak.api.clients', '');
-        $clients = is_array($clients) ? $clients : explode(',', is_string($clients) ? $clients : '');
-
-        return array_values(array_filter(array_map(fn (mixed $client): string => is_scalar($client) ? trim((string) $client) : '', $clients)));
+        return [
+            'iss' => $this->issuer(),
+            'aud' => $this->audience(),
+            'azp' => $this->clients()[0] ?? null,
+        ];
     }
 
     /**
@@ -122,17 +89,42 @@ class TokenVerifier
      */
     private function invalidClaim(array $claims): ?string
     {
-        $audience = $this->config->get('keycloak.api.audience');
+        $audience = $this->audience();
 
         return match (true) {
             // php-jwt проверяет срок, только если exp есть
             ! isset($claims['exp']) => 'exp missing',
             ($claims['iss'] ?? null) !== $this->issuer() => 'iss mismatch',
-            ! is_string($audience) || $audience === '' => 'audience not configured',
+            $audience === null => 'audience not configured',
             ! in_array($audience, (array) ($claims['aud'] ?? []), true) => 'aud mismatch',
             ! in_array($claims['azp'] ?? null, $this->clients(), true) => 'azp not allowed',
             default => null,
         };
+    }
+
+    private function issuer(): string
+    {
+        $issuer = $this->config->get('keycloak.api.issuer');
+
+        return is_string($issuer) && $issuer !== '' ? $issuer : $this->keycloak->realmUrl();
+    }
+
+    private function audience(): ?string
+    {
+        $audience = $this->config->get('keycloak.api.audience');
+
+        return is_string($audience) && $audience !== '' ? $audience : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function clients(): array
+    {
+        $clients = $this->config->get('keycloak.api.clients', '');
+        $clients = is_array($clients) ? $clients : explode(',', is_string($clients) ? $clients : '');
+
+        return array_values(array_filter(array_map(fn (mixed $client): string => is_scalar($client) ? trim((string) $client) : '', $clients)));
     }
 
     private function kid(string $jwt): ?string
@@ -164,75 +156,6 @@ class TokenVerifier
         return is_array($decoded) ? $decoded : null;
     }
 
-    /**
-     * В кеше лежит сырой JWKS: объекты Key с ключами OpenSSL не сериализуются.
-     *
-     * @return array<string, Key>|null
-     */
-    private function keys(bool $refresh = false): ?array
-    {
-        $jwks = $refresh ? null : $this->cache->get($this->cacheKey('jwks'));
-        $jwks = is_array($jwks) ? $jwks : $this->fetch();
-
-        if ($jwks === null) {
-            return null;
-        }
-
-        try {
-            // alg жёстко RS256: none php-jwt не поддерживает, а HS* не совпадёт
-            // с алгоритмом ключа. + оставляет наш alg, даже если в JWK другой
-            return JWK::parseKeySet([
-                'keys' => array_map(fn (array $jwk) => ['alg' => 'RS256'] + $jwk, $jwks),
-            ]);
-        } catch (Throwable $e) {
-            $this->log->warning('Keycloak: JWKS не разобран', ['error' => $e->getMessage()]);
-
-            return null;
-        }
-    }
-
-    /**
-     * @return list<array<string, mixed>>|null
-     */
-    private function fetch(): ?array
-    {
-        try {
-            $keys = $this->http->timeout(5)->get($this->jwksUrl())->throw()->json('keys', []);
-        } catch (Throwable $e) {
-            $this->log->warning('Keycloak: не удалось скачать JWKS', ['url' => $this->jwksUrl(), 'error' => $e->getMessage()]);
-
-            return null;
-        }
-
-        // Только RSA-ключи подписи: Keycloak отдаёт рядом ключ шифрования RSA-OAEP
-        $jwks = array_values(array_filter(
-            is_array($keys) ? $keys : [],
-            fn (mixed $jwk): bool => is_array($jwk) && ($jwk['kty'] ?? null) === 'RSA' && ($jwk['use'] ?? 'sig') === 'sig',
-        ));
-
-        if ($jwks === []) {
-            $this->log->warning('Keycloak: в JWKS нет RSA-ключей подписи', ['url' => $this->jwksUrl()]);
-
-            return null;
-        }
-
-        /** @var list<array<string, mixed>> $jwks */
-        $this->cacheJwks($jwks);
-
-        return $jwks;
-    }
-
-    /**
-     * Ключи в кеш в обход Keycloak: так трейт InteractsWithKeycloak подсовывает
-     * тестовый ключ. false, если хранилище кеша значения не держит.
-     *
-     * @param  list<array<string, mixed>>  $jwks
-     */
-    public function cacheJwks(array $jwks): bool
-    {
-        return $this->cache->put($this->cacheKey('jwks'), $jwks, (int) $this->config->get('keycloak.api.jwks_cache_ttl', 3600));
-    }
-
     private function reject(string $jwt, string $kid, string $reason): void
     {
         // iss и azp из непроверенного payload: только чтобы понять, кто стучится
@@ -244,11 +167,5 @@ class TokenVerifier
             'azp' => is_string($payload['azp'] ?? null) ? $payload['azp'] : null,
             'reason' => $reason,
         ]);
-    }
-
-    // Ключ кеша от адреса JWKS: два realm-а в одном кеше не смешиваются
-    private function cacheKey(string $name): string
-    {
-        return 'keycloak:'.$name.':'.hash('sha256', $this->jwksUrl());
     }
 }

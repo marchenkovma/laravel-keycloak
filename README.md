@@ -299,7 +299,7 @@ $this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->asse
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
-Трейт берёт `iss`, `aud`, `azp` и адрес JWKS из конфига, поэтому в `phpunit.xml` проекта должны быть заданы `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_CLIENTS`. Без `KEYCLOAK_API_AUDIENCE` guard отвечает 401 на любой токен.
+Трейт берёт `iss`, `aud` и `azp` из конфига, поэтому в `phpunit.xml` проекта должны быть заданы `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_CLIENTS`. Без `KEYCLOAK_API_AUDIENCE` guard отвечает 401 на любой токен.
 
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
@@ -308,7 +308,7 @@ $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 <env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
 ```
 
-- `withKeycloakToken()` генерирует ключ RSA и кладёт его JWKS в кеш, откуда guard берёт ключи. В сеть guard не ходит, поэтому `Http::fake` проекта ему не мешает, а `Http::assertNothingSent()` проходит. Кеш в тестах должен хранить значения: `CACHE_STORE=array`, как в `phpunit.xml` Laravel по умолчанию. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
+- `withKeycloakToken()` генерирует ключ RSA и подставляет его публичную часть в guard вместо JWKS Keycloak. Guard не ходит ни в сеть, ни в кеш, поэтому `Http::fake` проекта ему не мешает, `Http::assertNothingSent()` проходит, а хранилище кеша в тестах может быть любым. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
 - `keycloakToken($claims)` отдаёт сам токен, например для своих заголовков.
 - Несколько вызовов `withKeycloakToken()` в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя. Если токен из `keycloakToken()` отправляется своим заголовком, перед вторым запросом вызовите `app('auth')->forgetGuards()` сами.
 

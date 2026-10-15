@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Marchenkovma\LaravelKeycloak\Testing;
 
 use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Marchenkovma\LaravelKeycloak\Api\SigningKeys;
 use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
 use Marchenkovma\LaravelKeycloak\Keycloak;
 use RuntimeException;
@@ -14,13 +16,13 @@ use RuntimeException;
  * Помощники для тестов проектов (подключается в TestCase проекта).
  *
  * withKeycloakToken() шлёт запрос с настоящим RS256-токеном: ключ
- * генерируется в тесте, его JWKS кладётся в кеш, откуда guard keycloak
- * берёт ключи. Guard проверяет токен полностью, в сеть не ходит, и
- * Http::fake проекта ему не мешает.
+ * генерируется в тесте, его публичная часть подменяет ключи подписи
+ * guard-а keycloak (FakeSigningKeys). Guard проверяет токен полностью,
+ * в сеть и в кеш не ходит, и Http::fake проекта ему не мешает.
  */
 trait InteractsWithKeycloak
 {
-    /** @var array{kid: string, private: string, jwk: array<string, string>}|null */
+    /** @var array{kid: string, private: string, public: string}|null */
     private ?array $keycloakTestKey = null;
 
     /**
@@ -47,17 +49,14 @@ trait InteractsWithKeycloak
     public function keycloakToken(array $claims = []): string
     {
         $key = $this->keycloakTestKey();
-        $verifier = app(TokenVerifier::class);
 
-        // При каждом токене заново: Cache::flush() в тесте ключ не потеряет
-        if (! $verifier->cacheJwks([$key['jwk']])) {
-            throw new RuntimeException('Keycloak test token: the cache store does not keep values. Use the array cache driver in tests (CACHE_STORE=array).');
-        }
+        // При каждом токене заново: тест мог пересоздать приложение
+        app()->instance(SigningKeys::class, new FakeSigningKeys([
+            $key['kid'] => new Key($key['public'], 'RS256'),
+        ]));
 
         $payload = array_filter([
-            'iss' => $verifier->issuer(),
-            'aud' => config('keycloak.api.audience'),
-            'azp' => $verifier->clients()[0] ?? null,
+            ...app(TokenVerifier::class)->acceptedClaims(),
             'exp' => time() + 300,
             'iat' => time(),
             ...$claims,
@@ -79,9 +78,9 @@ trait InteractsWithKeycloak
     }
 
     /**
-     * Пара RSA на тест и JWK её публичной части.
+     * Пара RSA на тест: закрытая часть подписывает, публичная проверяет.
      *
-     * @return array{kid: string, private: string, jwk: array<string, string>}
+     * @return array{kid: string, private: string, public: string}
      */
     private function keycloakTestKey(): array
     {
@@ -99,11 +98,7 @@ trait InteractsWithKeycloak
         $this->keycloakTestKey = [
             'kid' => 'keycloak-test',
             'private' => $private,
-            'jwk' => [
-                'kid' => 'keycloak-test', 'kty' => 'RSA', 'alg' => 'RS256', 'use' => 'sig',
-                'n' => JWT::urlsafeB64Encode($details['rsa']['n']),
-                'e' => JWT::urlsafeB64Encode($details['rsa']['e']),
-            ],
+            'public' => $details['key'],
         ];
 
         return $this->keycloakTestKey;

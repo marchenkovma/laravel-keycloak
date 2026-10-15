@@ -299,7 +299,7 @@ $this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->asse
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
-The trait takes `iss`, `aud`, `azp` and the JWKS URL from the config, so the project `phpunit.xml` must define `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` and `KEYCLOAK_API_CLIENTS`. Without `KEYCLOAK_API_AUDIENCE` the guard answers 401 to every token.
+The trait takes `iss`, `aud` and `azp` from the config, so the project `phpunit.xml` must define `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` and `KEYCLOAK_API_CLIENTS`. Without `KEYCLOAK_API_AUDIENCE` the guard answers 401 to every token.
 
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
@@ -308,7 +308,7 @@ The trait takes `iss`, `aud`, `azp` and the JWKS URL from the config, so the pro
 <env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
 ```
 
-- `withKeycloakToken()` generates an RSA key and puts its JWKS into the cache, where the guard reads the keys from. The guard never hits the network, so the project's own `Http::fake` does not interfere and `Http::assertNothingSent()` passes. The test cache must keep values: `CACHE_STORE=array`, as in the default Laravel `phpunit.xml`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
+- `withKeycloakToken()` generates an RSA key and gives its public part to the guard in place of the Keycloak JWKS. The guard touches neither the network nor the cache, so the project's own `Http::fake` does not interfere, `Http::assertNothingSent()` passes, and any test cache store works. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
 - `keycloakToken($claims)` returns the token itself, e.g. for custom headers.
 - Several `withKeycloakToken()` calls in one test work: before each one the trait drops the user remembered by the guard. If a token from `keycloakToken()` is sent in a custom header, call `app('auth')->forgetGuards()` yourself before the second request.
 

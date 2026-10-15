@@ -13,6 +13,8 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 use Laravel\Socialite\SocialiteManager;
+use Marchenkovma\LaravelKeycloak\Api\JwksSigningKeys;
+use Marchenkovma\LaravelKeycloak\Api\SigningKeys;
 use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
 use Marchenkovma\LaravelKeycloak\Auth\EloquentUserResolver;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
@@ -30,6 +32,10 @@ class KeycloakServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/keycloak.php', 'keycloak');
 
         $this->app->singleton(Keycloak::class);
+
+        // Singleton: разобранные ключи переживают запрос под Octane и в очередях.
+        // Трейт InteractsWithKeycloak подменяет его на FakeSigningKeys
+        $this->app->singleton(SigningKeys::class, JwksSigningKeys::class);
 
         // Проект подменяет своим bind-ом в AppServiceProvider
         $this->app->bindIf(ResolvesKeycloakUser::class, EloquentUserResolver::class);

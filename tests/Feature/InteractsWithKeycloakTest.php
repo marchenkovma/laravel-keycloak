@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Marchenkovma\LaravelKeycloak\Api\KeycloakClient;
@@ -66,10 +67,17 @@ it('project Http::fake stubs registered after withKeycloakToken keep working', f
     Http::assertSentCount(1);
 });
 
-it('a cache store that keeps no values gives a clear error instead of 401', function () {
+it('does not depend on the cache store: works with one that keeps no values', function () {
     config(['cache.stores.null' => ['driver' => 'null'], 'cache.default' => 'null']);
 
-    expect(fn () => $this->withKeycloakToken())->toThrow(RuntimeException::class, 'cache');
+    $this->withKeycloakToken()->getJson('api/whoami')->assertOk();
+});
+
+it('Cache::flush in a test does not lose the test key', function () {
+    $this->withKeycloakToken();
+    Cache::flush();
+
+    $this->getJson('api/whoami')->assertOk();
 });
 
 it('keycloakToken returns the raw token for custom headers', function () {
