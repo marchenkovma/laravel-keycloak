@@ -1,6 +1,30 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.1.0...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.2.0...HEAD)
+
+## [v0.2.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.1.0...v0.2.0) - 2026-10-15
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13.
+
+### Несовместимые изменения
+
+- `Keycloak::roleFor()` принимает claims userinfo одним массивом: `Keycloak::roleFor(['groups' => [...], 'roles' => [...]])` вместо двух отдельных массивов.
+- В контракте `ResolvesKeycloakUser` остался один метод `resolve()`. В bypass-режиме в него приходит фейковый пользователь: username `bypass`, имя из `keycloak::messages.bypass_name`, почта `bypass@localhost`. Метод `bypass()` из своей реализации можно удалить.
+- У `TokenVerifier` публичными остались `verify()` и `acceptedClaims()`. Методы `issuer()`, `clients()`, `jwksUrl()` и `cacheJwks()` убраны.
+
+### Вход пользователей
+
+- `Keycloak::idToken()`: id_token входа из сессии. Запись сессии ведёт только класс `Keycloak`, а `actingAsKeycloakUser()` пишет её тем же методом, что и настоящий вход.
+- Пустой id_token в сессии считается отсутствующим: выход идёт сразу на `redirects.after_logout`, без end_session.
+
+### API
+
+- Ключи подписи берутся через интерфейс `SigningKeys`. В приложении это `JwksSigningKeys`: JWKS realm-а, кеш и ротация ключей. Разобранные ключи переиспользуются в памяти процесса, пока в кеше тот же JWKS, поэтому под Octane и в очередях JWKS не разбирается на каждый запрос.
+- В логе отказа причина `unknown kid` заменена на `no signing key for kid`.
+
+### Тесты
+
+- `withKeycloakToken()` и `keycloakToken()` больше не пишут в кеш: тестовый ключ подставляется через `FakeSigningKeys`. `CACHE_STORE=array` в тестах проекта больше не нужен.
 
 ## [v0.1.0](https://github.com/marchenkovma/laravel-keycloak/releases/tag/v0.1.0) - 2026-10-14
 
