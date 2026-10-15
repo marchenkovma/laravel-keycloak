@@ -50,7 +50,7 @@ php artisan vendor:publish --tag=keycloak-config
 ```dotenv
 KEYCLOAK_BASE_URL=https://sso.example.com
 KEYCLOAK_REALM=corp
-KEYCLOAK_CLIENT_ID=employees
+KEYCLOAK_CLIENT_ID=my-app
 KEYCLOAK_CLIENT_SECRET=
 
 # Локальная разработка без Keycloak: вход фейковым пользователем.
@@ -79,7 +79,7 @@ Keycloak с сертификатом корпоративного CA: корне
 
 ### Настройка клиента для входа
 
-1. Клиент приложения (например, `employees`):
+1. Клиент приложения (например, `my-app`):
    - Client authentication ON (confidential), Standard flow ON;
    - в Advanced: Proof Key for Code Exchange Code Challenge Method = S256;
    - Valid redirect URIs: `https://<приложение>/auth/callback`;
@@ -101,7 +101,7 @@ Keycloak с сертификатом корпоративного CA: корне
 // config/keycloak.php
 'roles' => [
     'admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']],
-    'user' => ['groups' => ['/apps/employees/user']],
+    'user' => ['groups' => ['/apps/my-app/user']],
 ],
 ```
 
@@ -197,8 +197,8 @@ Guard `keycloak` проверяет `Authorization: Bearer <jwt>`, то есть
 ```
 
 ```dotenv
-KEYCLOAK_API_AUDIENCE=employee-service      # aud, который должен быть в токене
-KEYCLOAK_API_CLIENTS=portguard-api,other    # разрешённые azp через запятую
+KEYCLOAK_API_AUDIENCE=orders-api            # aud, который должен быть в токене
+KEYCLOAK_API_CLIENTS=reports-api,other      # разрешённые azp через запятую
 KEYCLOAK_ISSUER=                             # пусто: {KEYCLOAK_BASE_URL}/realms/{realm}
 KEYCLOAK_JWKS_CACHE_TTL=3600
 ```
@@ -228,9 +228,9 @@ Route::middleware('auth:keycloak,sanctum')->group(...);
 ```php
 $client = $request->user();
 
-$client->getAuthIdentifier();                 // azp, например 'portguard-api'
+$client->getAuthIdentifier();                 // azp, например 'reports-api'
 $client->claims;                              // все claims токена
-$client->hasRole('employee-service', 'read'); // роль из resource_access
+$client->hasRole('orders-api', 'read');       // роль из resource_access
 $client->hasScope('email');
 ```
 
@@ -247,13 +247,13 @@ Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $
 ```php
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 
-Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/api/v1/departments');
+Http::withToken(Keycloak::serviceToken())->get('https://orders.example.com/api/v1/orders');
 ```
 
 Токен кешируется до `expires_in` минус 30 с, повторные вызовы в Keycloak не ходят. Учётные данные берутся в таком порядке:
 
 1. аргументы: `Keycloak::serviceToken('reports-api', $secret)`;
-2. `KEYCLOAK_SERVICE_CLIENT_ID` и `KEYCLOAK_SERVICE_CLIENT_SECRET`, если вызовы идут от отдельного клиента (например, `portguard-api`), а вход пользователей от другого;
+2. `KEYCLOAK_SERVICE_CLIENT_ID` и `KEYCLOAK_SERVICE_CLIENT_SECRET`, если вызовы идут от отдельного клиента (например, `reports-api`), а вход пользователей от другого;
 3. `KEYCLOAK_CLIENT_ID` и `KEYCLOAK_CLIENT_SECRET`.
 
 Пара берётся целиком из одного источника. Если задан только `KEYCLOAK_SERVICE_CLIENT_ID` без секрета или только первый аргумент, бросается исключение: id одного клиента не уйдёт с секретом другого.
@@ -262,17 +262,17 @@ Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/ap
 
 ### Настройка клиента в Keycloak
 
-1. Клиент, который будет ходить в API (например, `portguard-api`):
+1. Клиент, который будет ходить в API (например, `reports-api`):
    - Client authentication ON (confidential);
    - Service accounts roles ON;
    - Standard flow и Direct access grants OFF.
-2. Audience mapper на этом клиенте: Included Custom Audience = audience принимающего API (`employee-service`), Add to access token ON. Вместо этого можно взять client scope с таким mapper-ом.
+2. Audience mapper на этом клиенте: Included Custom Audience = audience принимающего API (`orders-api`), Add to access token ON. Вместо этого можно взять client scope с таким mapper-ом.
 3. Секрет клиента нужен только вызывающей стороне. Принимающему API он не нужен.
 
 Проверка руками:
 
 ```bash
-TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d client_secret=... \
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=reports-api -d client_secret=... \
   https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
 curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
@@ -292,8 +292,8 @@ abstract class TestCase extends BaseTestCase
 
 ```php
 // API: настоящий RS256-токен, guard проверяет его полностью, без Keycloak
-$this->withKeycloakToken()->getJson('/api/v1/departments')->assertOk();
-$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')->assertUnauthorized();
+$this->withKeycloakToken()->getJson('/api/v1/orders')->assertOk();
+$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->assertUnauthorized();
 
 // Вход пользователя с ролью в сессии, без Socialite
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
@@ -304,8 +304,8 @@ $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
 <env name="KEYCLOAK_REALM" value="corp"/>
-<env name="KEYCLOAK_API_AUDIENCE" value="employee-service"/>
-<env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
+<env name="KEYCLOAK_API_AUDIENCE" value="orders-api"/>
+<env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
 ```
 
 - `withKeycloakToken()` генерирует ключ RSA и кладёт его JWKS в кеш, откуда guard берёт ключи. В сеть guard не ходит, поэтому `Http::fake` проекта ему не мешает, а `Http::assertNothingSent()` проходит. Кеш в тестах должен хранить значения: `CACHE_STORE=array`, как в `phpunit.xml` Laravel по умолчанию. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.

@@ -16,8 +16,8 @@ use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 
 beforeEach(function () {
     config([
-        'keycloak.api.audience' => 'employee-service',
-        'keycloak.api.clients' => 'portguard-api, other-api',
+        'keycloak.api.audience' => 'orders-api',
+        'keycloak.api.clients' => 'reports-api, other-api',
         'auth.guards.keycloak' => ['driver' => 'keycloak'],
         'auth.guards.other' => ['driver' => 'other'],
     ]);
@@ -63,7 +63,7 @@ function jwksRequests(): int
 it('allows a token of a permitted client, the user is KeycloakClient with azp', function () {
     ping(signedToken($this->key))
         ->assertOk()
-        ->assertJson(['class' => KeycloakClient::class, 'id' => 'portguard-api']);
+        ->assertJson(['class' => KeycloakClient::class, 'id' => 'reports-api']);
 });
 
 it('KeycloakClient exposes claims, resource_access roles and scope', function () {
@@ -73,19 +73,19 @@ it('KeycloakClient exposes claims, resource_access roles and scope', function ()
 
         return [
             'azp' => $client->claims['azp'],
-            'role' => $client->hasRole('employee-service', 'read'),
-            'foreign_role' => $client->hasRole('employee-service', 'write'),
+            'role' => $client->hasRole('orders-api', 'read'),
+            'foreign_role' => $client->hasRole('orders-api', 'write'),
             'scope' => $client->hasScope('email'),
             'foreign_scope' => $client->hasScope('admin'),
         ];
     })->middleware('auth:keycloak');
 
     $this->getJson('api/client', ['Authorization' => 'Bearer '.signedToken($this->key)])
-        ->assertExactJson(['azp' => 'portguard-api', 'role' => true, 'foreign_role' => false, 'scope' => true, 'foreign_scope' => false]);
+        ->assertExactJson(['azp' => 'reports-api', 'role' => true, 'foreign_role' => false, 'scope' => true, 'foreign_scope' => false]);
 });
 
 it('accepts aud as a string', function () {
-    ping(signedToken($this->key, ['aud' => 'employee-service']))->assertOk();
+    ping(signedToken($this->key, ['aud' => 'orders-api']))->assertOk();
 });
 
 it('takes iss from api.issuer when set: the public address differs from base_url', function () {
@@ -119,7 +119,7 @@ it('refuses (401)', function (string $jwt) {
     'no exp' => fn () => signedToken($this->key, ['exp' => null]),
     'alg none' => fn () => unsignedToken('none', 'k1'),
     'HS256 signed with the public key' => fn () => JWT::encode(
-        ['iss' => 'https://keycloak.test/realms/corp', 'aud' => 'employee-service', 'azp' => 'portguard-api', 'exp' => time() + 300],
+        ['iss' => 'https://keycloak.test/realms/corp', 'aud' => 'orders-api', 'azp' => 'reports-api', 'exp' => time() + 300],
         (string) openssl_pkey_get_details(openssl_pkey_get_private($this->key['private']))['key'],
         'HS256',
         'k1',
@@ -220,7 +220,7 @@ describe('yields to the next guard', function () {
     it('a Keycloak token passes auth:keycloak,other', function () {
         $this->getJson('api/either', ['Authorization' => 'Bearer '.signedToken($this->key)])
             ->assertOk()
-            ->assertJson(['id' => 'portguard-api']);
+            ->assertJson(['id' => 'reports-api']);
     });
 
     it('a broken JWT does not break the request but yields: other does not know it either, hence 401', function () {
@@ -232,7 +232,7 @@ describe('yields to the next guard', function () {
 it('the project replaces the guard user with its own class', function () {
     Keycloak::resolveApiClientUsing(fn (array $claims) => new GenericUser(['id' => 'api:'.$claims['azp']]));
 
-    ping(signedToken($this->key))->assertOk()->assertJson(['class' => GenericUser::class, 'id' => 'api:portguard-api']);
+    ping(signedToken($this->key))->assertOk()->assertJson(['class' => GenericUser::class, 'id' => 'api:reports-api']);
 });
 
 it('a custom resolver can refuse by returning null', function () {

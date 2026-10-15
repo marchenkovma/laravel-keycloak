@@ -10,8 +10,8 @@ use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 
 beforeEach(function () {
     config([
-        'keycloak.api.audience' => 'employee-service',
-        'keycloak.api.clients' => 'portguard-api,other-api',
+        'keycloak.api.audience' => 'orders-api',
+        'keycloak.api.clients' => 'reports-api,other-api',
         'auth.guards.keycloak' => ['driver' => 'keycloak'],
     ]);
 
@@ -26,7 +26,7 @@ beforeEach(function () {
 it('withKeycloakToken passes the keycloak guard with claims from the config', function () {
     $this->withKeycloakToken()->getJson('api/whoami')
         ->assertOk()
-        ->assertExactJson(['azp' => 'portguard-api', 'aud' => 'employee-service', 'scope' => null]);
+        ->assertExactJson(['azp' => 'reports-api', 'aud' => 'orders-api', 'scope' => null]);
 });
 
 it('withKeycloakToken adds and overrides claims', function () {
@@ -44,7 +44,7 @@ it('the guard rejects a token of a client outside the list', function () {
 });
 
 it('several requests in one test, each with its own token', function () {
-    $this->withKeycloakToken()->getJson('api/whoami')->assertJson(['azp' => 'portguard-api']);
+    $this->withKeycloakToken()->getJson('api/whoami')->assertJson(['azp' => 'reports-api']);
     $this->withKeycloakToken(['azp' => 'other-api'])->getJson('api/whoami')->assertJson(['azp' => 'other-api']);
 });
 
@@ -58,11 +58,11 @@ it('the guard does not fetch the JWKS over the network: a project Http::fake, ev
 
 it('project Http::fake stubs registered after withKeycloakToken keep working', function () {
     $this->withKeycloakToken();
-    Http::fake(['https://employees.test/*' => Http::response(['ok' => true])]);
+    Http::fake(['https://orders.test/*' => Http::response(['ok' => true])]);
 
     $this->getJson('api/whoami')->assertOk();
 
-    expect(Http::get('https://employees.test/api')->json('ok'))->toBeTrue();
+    expect(Http::get('https://orders.test/api')->json('ok'))->toBeTrue();
     Http::assertSentCount(1);
 });
 

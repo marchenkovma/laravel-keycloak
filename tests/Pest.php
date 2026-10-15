@@ -86,12 +86,12 @@ function signedToken(array $key, array $claims = []): string
 {
     $payload = array_filter([
         'iss' => 'https://keycloak.test/realms/corp',
-        'aud' => ['employee-service', 'account'],
-        'azp' => 'portguard-api',
+        'aud' => ['orders-api', 'account'],
+        'azp' => 'reports-api',
         'exp' => time() + 300,
         'iat' => time(),
         'scope' => 'profile email',
-        'resource_access' => ['employee-service' => ['roles' => ['read']]],
+        'resource_access' => ['orders-api' => ['roles' => ['read']]],
         ...$claims,
     ], fn ($value) => $value !== null);
 
@@ -103,8 +103,8 @@ function unsignedToken(string $alg, string $kid): string
 {
     $header = JWT::urlsafeB64Encode((string) json_encode(['alg' => $alg, 'typ' => 'JWT', 'kid' => $kid]));
     $payload = JWT::urlsafeB64Encode((string) json_encode([
-        'iss' => 'https://keycloak.test/realms/corp', 'aud' => 'employee-service',
-        'azp' => 'portguard-api', 'exp' => time() + 300,
+        'iss' => 'https://keycloak.test/realms/corp', 'aud' => 'orders-api',
+        'azp' => 'reports-api', 'exp' => time() + 300,
     ]));
 
     return "{$header}.{$payload}.";

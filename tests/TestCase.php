@@ -44,14 +44,14 @@ abstract class TestCase extends Orchestra
 
         $app['config']->set('keycloak.base_url', 'https://keycloak.test');
         $app['config']->set('keycloak.realm', 'corp');
-        $app['config']->set('keycloak.client_id', 'employees');
+        $app['config']->set('keycloak.client_id', 'my-app');
         $app['config']->set('keycloak.client_secret', 'web-secret');
         $app['config']->set('keycloak.web.bypass', false);
 
-        // Роли как в employee-service: admin по группам, user по группе
+        // Роли: admin по группам и роли клиента, user по группе
         $app['config']->set('keycloak.web.roles', [
-            'admin' => ['groups' => ['/Administrators', '/apps/employees/admin'], 'client_roles' => ['admin']],
-            'user' => ['groups' => ['/apps/employees/user']],
+            'admin' => ['groups' => ['/Administrators', '/apps/my-app/admin'], 'client_roles' => ['admin']],
+            'user' => ['groups' => ['/apps/my-app/user']],
         ]);
     }
 

@@ -22,7 +22,7 @@ return [
         // роли клиента (claim `roles`)
         'roles' => [
             // 'admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']],
-            // 'user' => ['groups' => ['/apps/employees/user']],
+            // 'user' => ['groups' => ['/apps/my-app/user']],
         ],
 
         'redirects' => [

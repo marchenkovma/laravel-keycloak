@@ -33,7 +33,7 @@ it('registers the keycloak Socialite driver from config/keycloak.php', function 
     $url = $driver->stateless()->redirect()->getTargetUrl();
 
     expect($url)->toStartWith('https://keycloak.test/realms/corp/protocol/openid-connect/auth?')
-        ->and($url)->toContain('client_id=employees')
+        ->and($url)->toContain('client_id=my-app')
         ->and($url)->toContain('redirect_uri='.urlencode(url('/auth/callback')));
 });
 

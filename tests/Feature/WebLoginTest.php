@@ -16,7 +16,7 @@ describe('login', function () {
 
         expect($location)
             ->toStartWith('https://keycloak.test/realms/corp/protocol/openid-connect/auth')
-            ->toContain('client_id=employees')
+            ->toContain('client_id=my-app')
             ->toContain('response_type=code')
             ->toContain('code_challenge=')
             ->toContain('code_challenge_method=S256')
@@ -87,7 +87,7 @@ describe('login', function () {
 
 describe('callback', function () {
     it('creates the user, stores the role and id_token in the session and redirects home', function () {
-        fakeKeycloakUser(groups: ['/apps/employees/user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
 
@@ -105,7 +105,7 @@ describe('callback', function () {
     it('creates and updates the user without mass assignment: a guarded or strict model works too', function () {
         // Как в проекте с Model::shouldBeStrict(), где username не в $fillable
         Model::preventSilentlyDiscardingAttributes();
-        fakeKeycloakUser(groups: ['/apps/employees/user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user']);
 
         try {
             $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
@@ -123,7 +123,7 @@ describe('callback', function () {
     it('a repeated login updates the user instead of creating a new one', function () {
         $old = new User;
         $old->forceFill(['username' => 'ivanov', 'name' => 'Старое Имя', 'email' => 'old@example.com'])->save();
-        fakeKeycloakUser(groups: ['/apps/employees/user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
 
@@ -132,7 +132,7 @@ describe('callback', function () {
     });
 
     it('redirects to the intended URL when the guest came from a protected page', function () {
-        fakeKeycloakUser(groups: ['/apps/employees/user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user']);
 
         $this->withSession(['url.intended' => url('/any-role')])
             ->get(route('auth.callback').'?code=x&state=y')
@@ -150,9 +150,9 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
-    it('a role missing from the config grants no access (portguard: admin only)', function () {
+    it('a role missing from the config grants no access: only admin is configured', function () {
         config(['keycloak.web.roles' => ['admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']]]]);
-        fakeKeycloakUser(groups: ['/apps/employees/user'], roles: ['user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user'], roles: ['user']);
 
         $this->get(route('auth.callback').'?code=x&state=y')->assertForbidden();
     });
@@ -193,7 +193,7 @@ describe('callback', function () {
     });
 
     it('no login without preferred_username: otherwise all users would merge into one record', function () {
-        fakeKeycloakUser(groups: ['/apps/employees/user'], nickname: null);
+        fakeKeycloakUser(groups: ['/apps/my-app/user'], nickname: null);
         $this->withoutExceptionHandling();
 
         expect(fn () => $this->get(route('auth.callback').'?code=x&state=y'))
@@ -211,7 +211,7 @@ describe('callback', function () {
                 return keycloakTestUser('custom-'.$user->getNickname());
             }
         });
-        fakeKeycloakUser(groups: ['/apps/employees/user']);
+        fakeKeycloakUser(groups: ['/apps/my-app/user']);
 
         $this->get(route('auth.callback').'?code=x&state=y');
 
@@ -266,7 +266,7 @@ describe('logout', function () {
 
 describe('role from claims', function () {
     it('takes the first match by priority from the groups claim', function () {
-        expect(Keycloak::roleFor(['groups' => ['/apps/employees/user', '/Administrators']]))->toBe('admin');
+        expect(Keycloak::roleFor(['groups' => ['/apps/my-app/user', '/Administrators']]))->toBe('admin');
     });
 
     it('takes a client role from the roles claim', function () {
@@ -274,11 +274,11 @@ describe('role from claims', function () {
     });
 
     it('accepts a single group as a string: a mapper without multivalued', function () {
-        expect(Keycloak::roleFor(['groups' => '/apps/employees/user']))->toBe('user');
+        expect(Keycloak::roleFor(['groups' => '/apps/my-app/user']))->toBe('user');
     });
 
     it('skips non-string values instead of failing', function () {
-        expect(Keycloak::roleFor(['groups' => [['nested' => 'object'], 42, '/apps/employees/user'], 'roles' => [null]]))->toBe('user');
+        expect(Keycloak::roleFor(['groups' => [['nested' => 'object'], 42, '/apps/my-app/user'], 'roles' => [null]]))->toBe('user');
     });
 
     it('no role without matching groups and roles', function (array $claims) {

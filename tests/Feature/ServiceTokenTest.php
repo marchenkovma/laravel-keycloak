@@ -31,17 +31,17 @@ it('requests a client credentials token as a form with client_id and client_secr
         && $request->method() === 'POST'
         && $request->isForm()
         && $request['grant_type'] === 'client_credentials'
-        && $request['client_id'] === 'employees'
+        && $request['client_id'] === 'my-app'
         && $request['client_secret'] === 'web-secret');
 });
 
 it('takes the credentials from the client_credentials section when it is filled', function () {
-    config(['keycloak.client_credentials' => ['client_id' => 'portguard-api', 'client_secret' => 'api-secret']]);
+    config(['keycloak.client_credentials' => ['client_id' => 'reports-api', 'client_secret' => 'api-secret']]);
     fakeTokenEndpoint();
 
     Keycloak::serviceToken();
 
-    Http::assertSent(fn (HttpRequest $request) => $request['client_id'] === 'portguard-api' && $request['client_secret'] === 'api-secret');
+    Http::assertSent(fn (HttpRequest $request) => $request['client_id'] === 'reports-api' && $request['client_secret'] === 'api-secret');
 });
 
 it('arguments override the config', function () {
@@ -53,7 +53,7 @@ it('arguments override the config', function () {
 });
 
 it('client_id without a secret in client_credentials: an exception, not the web client secret', function () {
-    config(['keycloak.client_credentials' => ['client_id' => 'portguard-api', 'client_secret' => null]]);
+    config(['keycloak.client_credentials' => ['client_id' => 'reports-api', 'client_secret' => null]]);
     Http::fake();
 
     expect(fn () => Keycloak::serviceToken())->toThrow(ServiceTokenException::class, 'client_secret');
@@ -112,10 +112,10 @@ it('a token living shorter than the margin is not cached', function () {
 it('Keycloak refusal: an exception with the error from the response and without the secret', function () {
     Http::fake([TOKEN_URL => Http::response(['error' => 'unauthorized_client', 'error_description' => 'Invalid client or Invalid client credentials'], 401)]);
 
-    expect(fn () => Keycloak::serviceToken('portguard-api', 'super-secret-value'))
+    expect(fn () => Keycloak::serviceToken('reports-api', 'super-secret-value'))
         ->toThrow(function (ServiceTokenException $e) {
             expect($e->getMessage())
-                ->toContain('portguard-api')
+                ->toContain('reports-api')
                 ->toContain('HTTP 401')
                 ->toContain('unauthorized_client')
                 ->not->toContain('super-secret-value');
@@ -125,7 +125,7 @@ it('Keycloak refusal: an exception with the error from the response and without 
 it('Keycloak unreachable: a package exception without the secret', function () {
     Http::fake([TOKEN_URL => fn () => throw new ConnectionException('cURL error 7: client_secret=super-secret-value')]);
 
-    expect(fn () => Keycloak::serviceToken('portguard-api', 'super-secret-value'))
+    expect(fn () => Keycloak::serviceToken('reports-api', 'super-secret-value'))
         ->toThrow(function (ServiceTokenException $e) {
             expect($e->getMessage())
                 ->toContain(TOKEN_URL)

@@ -50,7 +50,7 @@ php artisan vendor:publish --tag=keycloak-config
 ```dotenv
 KEYCLOAK_BASE_URL=https://sso.example.com
 KEYCLOAK_REALM=corp
-KEYCLOAK_CLIENT_ID=employees
+KEYCLOAK_CLIENT_ID=my-app
 KEYCLOAK_CLIENT_SECRET=
 
 # Local development without Keycloak: sign in as a fake user.
@@ -79,7 +79,7 @@ To register the routes yourself, set `keycloak.web.routes = false` and point the
 
 ### Client setup for login
 
-1. The application client (e.g. `employees`):
+1. The application client (e.g. `my-app`):
    - Client authentication ON (confidential), Standard flow ON;
    - in Advanced: Proof Key for Code Exchange Code Challenge Method = S256;
    - Valid redirect URIs: `https://<app>/auth/callback`;
@@ -101,7 +101,7 @@ The application role is resolved at login and kept in the session until logout. 
 // config/keycloak.php
 'roles' => [
     'admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']],
-    'user' => ['groups' => ['/apps/employees/user']],
+    'user' => ['groups' => ['/apps/my-app/user']],
 ],
 ```
 
@@ -197,8 +197,8 @@ The `keycloak` guard checks `Authorization: Bearer <jwt>`, a Keycloak client acc
 ```
 
 ```dotenv
-KEYCLOAK_API_AUDIENCE=employee-service      # aud the token must contain
-KEYCLOAK_API_CLIENTS=portguard-api,other    # allowed azp, comma-separated
+KEYCLOAK_API_AUDIENCE=orders-api            # aud the token must contain
+KEYCLOAK_API_CLIENTS=reports-api,other      # allowed azp, comma-separated
 KEYCLOAK_ISSUER=                             # empty means {KEYCLOAK_BASE_URL}/realms/{realm}
 KEYCLOAK_JWKS_CACHE_TTL=3600
 ```
@@ -228,9 +228,9 @@ The guard user is `Marchenkovma\LaravelKeycloak\Api\KeycloakClient`:
 ```php
 $client = $request->user();
 
-$client->getAuthIdentifier();                 // azp, e.g. 'portguard-api'
+$client->getAuthIdentifier();                 // azp, e.g. 'reports-api'
 $client->claims;                              // all token claims
-$client->hasRole('employee-service', 'read'); // role from resource_access
+$client->hasRole('orders-api', 'read');       // role from resource_access
 $client->hasScope('email');
 ```
 
@@ -247,13 +247,13 @@ Keycloak::resolveApiClientUsing(fn (array $claims) => new ApiClient(['name' => $
 ```php
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;
 
-Http::withToken(Keycloak::serviceToken())->get('https://employees.example.com/api/v1/departments');
+Http::withToken(Keycloak::serviceToken())->get('https://orders.example.com/api/v1/orders');
 ```
 
 The token is cached until `expires_in` minus 30 s, so repeated calls do not reach Keycloak. Credentials are taken in this order:
 
 1. arguments: `Keycloak::serviceToken('reports-api', $secret)`;
-2. `KEYCLOAK_SERVICE_CLIENT_ID` and `KEYCLOAK_SERVICE_CLIENT_SECRET`, when the calls are made by a separate client (e.g. `portguard-api`) and users sign in through another one;
+2. `KEYCLOAK_SERVICE_CLIENT_ID` and `KEYCLOAK_SERVICE_CLIENT_SECRET`, when the calls are made by a separate client (e.g. `reports-api`) and users sign in through another one;
 3. `KEYCLOAK_CLIENT_ID` and `KEYCLOAK_CLIENT_SECRET`.
 
 The pair always comes from a single source. If only `KEYCLOAK_SERVICE_CLIENT_ID` is set without the secret, or only the first argument is passed, an exception is thrown: one client's id never goes out with another client's secret.
@@ -262,17 +262,17 @@ If Keycloak refuses or is unreachable, `Marchenkovma\LaravelKeycloak\Exceptions\
 
 ### Keycloak client setup
 
-1. The client that calls the API (e.g. `portguard-api`):
+1. The client that calls the API (e.g. `reports-api`):
    - Client authentication ON (confidential);
    - Service accounts roles ON;
    - Standard flow and Direct access grants OFF.
-2. An audience mapper on that client: Included Custom Audience = the receiving API audience (`employee-service`), Add to access token ON. A client scope with such a mapper works too.
+2. An audience mapper on that client: Included Custom Audience = the receiving API audience (`orders-api`), Add to access token ON. A client scope with such a mapper works too.
 3. Only the calling side needs the client secret. The receiving API does not.
 
 Manual check:
 
 ```bash
-TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=portguard-api -d client_secret=... \
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=reports-api -d client_secret=... \
   https://<keycloak>/realms/<realm>/protocol/openid-connect/token | jq -r .access_token)
 curl -s -H "Authorization: Bearer $TOKEN" https://<api>/api/v1/...
 ```
@@ -292,8 +292,8 @@ abstract class TestCase extends BaseTestCase
 
 ```php
 // API: a real RS256 token, fully checked by the guard, no Keycloak needed
-$this->withKeycloakToken()->getJson('/api/v1/departments')->assertOk();
-$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/departments')->assertUnauthorized();
+$this->withKeycloakToken()->getJson('/api/v1/orders')->assertOk();
+$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->assertUnauthorized();
 
 // Sign a user in with a role in the session, no Socialite
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
@@ -304,8 +304,8 @@ The trait takes `iss`, `aud`, `azp` and the JWKS URL from the config, so the pro
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
 <env name="KEYCLOAK_REALM" value="corp"/>
-<env name="KEYCLOAK_API_AUDIENCE" value="employee-service"/>
-<env name="KEYCLOAK_API_CLIENTS" value="portguard-api"/>
+<env name="KEYCLOAK_API_AUDIENCE" value="orders-api"/>
+<env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
 ```
 
 - `withKeycloakToken()` generates an RSA key and puts its JWKS into the cache, where the guard reads the keys from. The guard never hits the network, so the project's own `Http::fake` does not interfere and `Http::assertNothingSent()` passes. The test cache must keep values: `CACHE_STORE=array`, as in the default Laravel `phpunit.xml`. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.

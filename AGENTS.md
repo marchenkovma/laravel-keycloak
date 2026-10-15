@@ -28,7 +28,7 @@ This repository is a Laravel package. Keep the package focused, idiomatic, and e
 
 ## Commits
 
-Conventional Commits, as in employee-service, portguard and geospm:
+Conventional Commits:
 
 - Subject: `type(scope): описание` in Russian, no trailing period. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`. Scope is the package area: `web`, `api`, `client`, `config`, `testing`, `release`.
 - Body in Russian: why the change was made and what is not obvious from the diff. Wrap at about 72 characters.
