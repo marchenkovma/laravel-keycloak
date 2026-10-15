@@ -175,6 +175,8 @@ use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 $this->app->bind(ResolvesKeycloakUser::class, MyKeycloakUsers::class);
 ```
 
+В bypass-режиме в тот же `resolve()` приходит фейковый пользователь: username `bypass`, имя из `keycloak::messages.bypass_name`, почта `bypass@localhost`. Отдельно обрабатывать bypass не нужно.
+
 ### Тексты
 
 Текст ответа 403 берётся из переводов `keycloak::messages.denied` (ru, en). Свой текст положите в `lang/vendor/keycloak/ru/messages.php` или опубликуйте файлы:

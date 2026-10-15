@@ -14,12 +14,9 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
 interface ResolvesKeycloakUser
 {
     /**
-     * Найти или создать пользователя по данным userinfo Keycloak.
+     * Найти или создать пользователя по данным userinfo Keycloak. В bypass-режиме
+     * сюда же приходит фейковый пользователь: username bypass, имя из
+     * keycloak::messages.bypass_name, почта bypass@localhost.
      */
     public function resolve(SocialiteUser $user): Authenticatable;
-
-    /**
-     * Фейковый пользователь для bypass-режима (локальная разработка).
-     */
-    public function bypass(): Authenticatable;
 }

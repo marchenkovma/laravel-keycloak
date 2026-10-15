@@ -35,6 +35,29 @@ describe('login', function () {
             ->and(User::sole()->name)->toBe(__('keycloak::messages.bypass_name'));
     });
 
+    it('bypass passes the fake user through the project resolver like userinfo', function () {
+        config(['keycloak.web.bypass' => true]);
+        app()->bind(ResolvesKeycloakUser::class, fn () => new class implements ResolvesKeycloakUser
+        {
+            public function resolve(Laravel\Socialite\Contracts\User $user): Authenticatable
+            {
+                app()->instance('test.resolved-keycloak-user', $user);
+
+                return keycloakTestUser('custom-'.$user->getNickname());
+            }
+        });
+
+        $this->get(route('auth.login'))->assertRedirect(route('home'));
+
+        /** @var Laravel\Socialite\Contracts\User $resolved */
+        $resolved = app('test.resolved-keycloak-user');
+
+        $this->assertAuthenticatedAs(User::sole());
+        expect(User::sole()->username)->toBe('custom-bypass')
+            ->and($resolved->getName())->toBe(__('keycloak::messages.bypass_name'))
+            ->and($resolved->getEmail())->toBe('bypass@localhost');
+    });
+
     it('bypass with an empty bypass_role grants no application role: keycloak.role answers 403', function () {
         config(['keycloak.web.bypass' => true, 'keycloak.web.bypass_role' => '']);
 
@@ -186,11 +209,6 @@ describe('callback', function () {
             public function resolve(Laravel\Socialite\Contracts\User $user): Authenticatable
             {
                 return keycloakTestUser('custom-'.$user->getNickname());
-            }
-
-            public function bypass(): Authenticatable
-            {
-                return keycloakTestUser('custom-bypass');
             }
         });
         fakeKeycloakUser(groups: ['/apps/employees/user']);

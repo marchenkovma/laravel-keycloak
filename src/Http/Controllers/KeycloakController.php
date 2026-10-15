@@ -10,8 +10,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
+use Laravel\Socialite\Two\User as OAuthUser;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
 use Marchenkovma\LaravelKeycloak\Keycloak;
 use SocialiteProviders\Keycloak\Provider as KeycloakProvider;
@@ -35,7 +37,7 @@ class KeycloakController
     public function login(Request $request): SymfonyRedirectResponse
     {
         if ($this->keycloak->bypassEnabled()) {
-            return $this->signIn($request, $this->users->bypass(), $this->stringConfig('web.bypass_role'), null);
+            return $this->signIn($request, $this->users->resolve($this->bypassUser()), $this->stringConfig('web.bypass_role'), null);
         }
 
         /** @var KeycloakProvider $driver */
@@ -111,6 +113,25 @@ class KeycloakController
         $this->keycloak->storeSignIn($role, $idToken);
 
         return redirect()->intended(route($this->stringConfig('web.redirects.after_login')));
+    }
+
+    // Bypass приходит в резолвер так же, как userinfo Keycloak: своя
+    // реализация ResolvesKeycloakUser обслуживает его без отдельного метода
+    private function bypassUser(): SocialiteUser
+    {
+        $name = __('keycloak::messages.bypass_name');
+        $attributes = [
+            'preferred_username' => 'bypass',
+            'name' => is_string($name) ? $name : 'bypass',
+            'email' => 'bypass@localhost',
+        ];
+
+        return (new OAuthUser)->setRaw($attributes)->map([
+            'id' => 'bypass',
+            'nickname' => $attributes['preferred_username'],
+            'name' => $attributes['name'],
+            'email' => $attributes['email'],
+        ]);
     }
 
     // Страница on_failure, без неё after_logout, с flash auth_notice для текста причины
