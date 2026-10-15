@@ -18,21 +18,9 @@ Keycloak for Laravel: user login via OIDC (Authorization Code + PKCE) with the a
 
 ## Installation
 
-While the package is not on Packagist, first add the repository to the project `composer.json`:
-
-```json
-"repositories": [
-    {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
-]
-```
-
-Then install the package:
-
 ```bash
 composer require marchenkovma/laravel-keycloak
 ```
-
-Composer resolves versions from repository tags. Until a tag exists, request the branch: `composer require marchenkovma/laravel-keycloak:dev-main`.
 
 The service provider and the `Keycloak` facade are auto-discovered. The package registers the `keycloak` Socialite driver itself, so:
 

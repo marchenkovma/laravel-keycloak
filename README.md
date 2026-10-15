@@ -18,21 +18,9 @@ Keycloak для Laravel: вход пользователей через OIDC (Au
 
 ## Установка
 
-Пока пакета нет на Packagist, сначала подключите репозиторий в `composer.json` проекта:
-
-```json
-"repositories": [
-    {"type": "vcs", "url": "https://github.com/marchenkovma/laravel-keycloak"}
-]
-```
-
-Затем установите пакет:
-
 ```bash
 composer require marchenkovma/laravel-keycloak
 ```
-
-Composer берёт версии из тегов репозитория. Пока тега нет, укажите ветку: `composer require marchenkovma/laravel-keycloak:dev-main`.
 
 Провайдер и фасад `Keycloak` подключаются автоматически. Драйвер `keycloak` для Socialite пакет регистрирует сам, поэтому:
 
