@@ -20,8 +20,9 @@ const KEYCLOAK_TEST_JWKS_URL = 'https://keycloak.test/realms/corp/protocol/openi
  *
  * @param  array<mixed>  $groups
  * @param  array<mixed>  $roles
+ * @param  array<mixed>  $resourceAccess
  */
-function fakeKeycloakUser(array $groups = [], array $roles = [], ?string $nickname = 'ivanov'): void
+function fakeKeycloakUser(array $groups = [], array $roles = [], ?string $nickname = 'ivanov', array $resourceAccess = []): void
 {
     $oidcUser = (new OidcUser)->map([
         'id' => 'kc-uuid-1',
@@ -32,6 +33,7 @@ function fakeKeycloakUser(array $groups = [], array $roles = [], ?string $nickna
         'preferred_username' => $nickname,
         'groups' => $groups,
         'roles' => $roles,
+        'resource_access' => $resourceAccess,
     ]);
 
     $oidcUser->accessTokenResponseBody = ['id_token' => 'fake-id-token'];

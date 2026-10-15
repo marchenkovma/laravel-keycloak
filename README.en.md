@@ -74,16 +74,18 @@ To register the routes yourself, set `keycloak.web.routes = false` and point the
    - Valid post logout redirect URIs: the after-logout page (`after_logout`).
 2. Mappers on the client or its dedicated scope. Socialite reads claims from userinfo, so both need **Add to userinfo** on:
    - Group Membership: Token Claim Name `groups`, Full group path ON;
-   - User Client Role: Client ID = this client, Token Claim Name `roles`, Multivalued ON.
+   - User Client Role: Client ID = this client, Token Claim Name `resource_access.${client_id}.roles`, Multivalued ON.
 
-Without Add to userinfo the response has no groups and roles, and every login ends with 403.
+Instead of your own roles mapper you can turn on Add to userinfo for the `client roles` mapper in the `roles` client scope: it writes roles to the same `resource_access`. The scope is shared across the realm, so roles will appear in the userinfo of every client that uses it.
+
+Without Add to userinfo the response has no groups and roles, and every login ends with 403. To see what actually arrives, check the `/realms/{realm}/protocol/openid-connect/userinfo` response or Client scopes, Evaluate tab, Generated user info.
 
 ### Roles
 
 The application role is resolved at login and kept in the session until logout. Rules are listed by priority, the first match wins:
 
 - `groups`: full group paths (claim `groups`, mapper with Full group path on);
-- `client_roles`: client roles (claim `roles`).
+- `client_roles`: roles of the `keycloak.client_id` client from `resource_access.{client_id}.roles`. If `resource_access` has no entry for this client, the flat `roles` claim is used (User Client Role mapper with Token Claim Name `roles`).
 
 ```php
 // config/keycloak.php

@@ -19,7 +19,8 @@ return [
 
         // Роли по приоритету, берётся первая совпавшая. groups: полные пути
         // групп (claim `groups`, mapper с Full group path), client_roles:
-        // роли клиента (claim `roles`)
+        // роли клиента client_id из resource_access.{client_id}.roles,
+        // без записи клиента там: из плоского claim `roles`
         'roles' => [
             // 'admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']],
             // 'user' => ['groups' => ['/apps/my-app/user']],

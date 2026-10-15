@@ -74,16 +74,18 @@ Keycloak с сертификатом корпоративного CA: корне
    - Valid post logout redirect URIs: адрес страницы после выхода (`after_logout`).
 2. Mapper-ы на клиенте или в его dedicated scope. Socialite читает claims из userinfo, поэтому у обоих включён **Add to userinfo**:
    - Group Membership: Token Claim Name `groups`, Full group path ON;
-   - User Client Role: Client ID = этот клиент, Token Claim Name `roles`, Multivalued ON.
+   - User Client Role: Client ID = этот клиент, Token Claim Name `resource_access.${client_id}.roles`, Multivalued ON.
 
-Без Add to userinfo групп и ролей в ответе нет, и любой вход закончится 403.
+Вместо своего mapper-а ролей можно включить Add to userinfo у mapper-а `client roles` в client scope `roles`: он пишет роли в тот же `resource_access`. Scope общий для realm-а, поэтому роли попадут в userinfo всех клиентов, где он подключён.
+
+Без Add to userinfo групп и ролей в ответе нет, и любой вход закончится 403. Что пришло на самом деле, видно в ответе `/realms/{realm}/protocol/openid-connect/userinfo` или в Client scopes, вкладка Evaluate, Generated user info.
 
 ### Роли
 
 Роль приложения определяется при входе и хранится в сессии до выхода. Правила перечисляются по приоритету, берётся первая совпавшая:
 
 - `groups`: полные пути групп (claim `groups`, mapper с включённым Full group path);
-- `client_roles`: роли клиента (claim `roles`).
+- `client_roles`: роли клиента `keycloak.client_id` из `resource_access.{client_id}.roles`. Если записи этого клиента в `resource_access` нет, берётся плоский claim `roles` (mapper User Client Role с Token Claim Name `roles`).
 
 ```php
 // config/keycloak.php

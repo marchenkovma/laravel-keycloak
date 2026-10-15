@@ -72,7 +72,7 @@ class Keycloak
 
     /**
      * Роль по claims userinfo: группы (claim `groups`) и роли клиента
-     * (claim `roles`), первая совпавшая из keycloak.web.roles, иначе null
+     * keycloak.client_id, первая совпавшая из keycloak.web.roles, иначе null
      * (нет доступа).
      *
      * @param  array<mixed>  $claims
@@ -86,7 +86,7 @@ class Keycloak
         // без multivalued) становится списком, а не строки (вложенный объект
         // от нестандартного mapper-а) уронили бы array_intersect
         $groups = array_filter((array) ($claims['groups'] ?? []), 'is_string');
-        $clientRoles = array_filter((array) ($claims['roles'] ?? []), 'is_string');
+        $clientRoles = array_filter((array) ($this->clientRolesClaim($claims) ?? []), 'is_string');
 
         foreach ($roles as $role => $rule) {
             if (array_intersect($rule['groups'] ?? [], $groups) !== []
@@ -96,6 +96,25 @@ class Keycloak
         }
 
         return null;
+    }
+
+    /**
+     * Роли клиента в стандартном формате Keycloak, resource_access.{client_id}.roles.
+     * Без записи этого клиента в resource_access: плоский claim `roles`
+     * (mapper User Client Role с Token Claim Name `roles`).
+     *
+     * @param  array<mixed>  $claims
+     */
+    private function clientRolesClaim(array $claims): mixed
+    {
+        $clientId = $this->config->get('keycloak.client_id');
+        $access = $claims['resource_access'] ?? null;
+
+        if (is_string($clientId) && is_array($access) && is_array($access[$clientId] ?? null)) {
+            return $access[$clientId]['roles'] ?? null;
+        }
+
+        return $claims['roles'] ?? null;
     }
 
     /**

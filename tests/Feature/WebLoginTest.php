@@ -150,6 +150,14 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
+    it('takes the role from resource_access of the configured client', function () {
+        fakeKeycloakUser(resourceAccess: ['my-app' => ['roles' => ['admin']], 'account' => ['roles' => ['view-profile']]]);
+
+        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+
+        expect(Keycloak::role())->toBe('admin');
+    });
+
     it('a role missing from the config grants no access: only admin is configured', function () {
         config(['keycloak.web.roles' => ['admin' => ['groups' => ['/Administrators'], 'client_roles' => ['admin']]]]);
         fakeKeycloakUser(groups: ['/apps/my-app/user'], roles: ['user']);
@@ -269,9 +277,27 @@ describe('role from claims', function () {
         expect(Keycloak::roleFor(['groups' => ['/apps/my-app/user', '/Administrators']]))->toBe('admin');
     });
 
-    it('takes a client role from the roles claim', function () {
-        expect(Keycloak::roleFor(['roles' => ['admin']]))->toBe('admin');
+    it('takes a client role from resource_access of keycloak.client_id', function () {
+        expect(Keycloak::roleFor(['resource_access' => ['my-app' => ['roles' => ['admin']]]]))->toBe('admin');
     });
+
+    it('ignores roles of other clients in resource_access', function () {
+        expect(Keycloak::roleFor(['resource_access' => ['other-app' => ['roles' => ['admin']]]]))->toBeNull();
+    });
+
+    it('resource_access of the client wins over the flat roles claim', function () {
+        expect(Keycloak::roleFor([
+            'resource_access' => ['my-app' => ['roles' => ['viewer']]],
+            'roles' => ['admin'],
+        ]))->toBeNull();
+    });
+
+    it('falls back to the flat roles claim without resource_access of the client', function (array $claims) {
+        expect(Keycloak::roleFor($claims))->toBe('admin');
+    })->with([
+        'no resource_access' => [['roles' => ['admin']]],
+        'only other clients' => [['resource_access' => ['account' => ['roles' => ['view-profile']]], 'roles' => ['admin']]],
+    ]);
 
     it('accepts a single group as a string: a mapper without multivalued', function () {
         expect(Keycloak::roleFor(['groups' => '/apps/my-app/user']))->toBe('user');
@@ -280,6 +306,15 @@ describe('role from claims', function () {
     it('skips non-string values instead of failing', function () {
         expect(Keycloak::roleFor(['groups' => [['nested' => 'object'], 42, '/apps/my-app/user'], 'roles' => [null]]))->toBe('user');
     });
+
+    it('survives a malformed resource_access instead of failing', function (mixed $resourceAccess) {
+        expect(Keycloak::roleFor(['resource_access' => $resourceAccess, 'groups' => ['/apps/my-app/user']]))->toBe('user');
+    })->with([
+        'string' => ['my-app'],
+        'client entry is a string' => [['my-app' => 'admin']],
+        'roles is a string' => [['my-app' => ['roles' => 'viewer']]],
+        'roles with non-strings' => [['my-app' => ['roles' => [null, ['nested' => 'object']]]]],
+    ]);
 
     it('no role without matching groups and roles', function (array $claims) {
         expect(Keycloak::roleFor($claims))->toBeNull();
