@@ -187,8 +187,9 @@ The `keycloak` guard checks `Authorization: Bearer <jwt>`, a Keycloak client acc
 ```
 
 ```dotenv
-KEYCLOAK_API_AUDIENCE=orders-api            # aud the token must contain
-KEYCLOAK_API_CLIENTS=reports-api,other      # allowed azp, comma-separated
+KEYCLOAK_API_AUDIENCE=orders-api            # aud in the token, also the API client id in Keycloak
+KEYCLOAK_API_ROLE=api                        # API client role that grants access
+KEYCLOAK_API_CLIENTS=                        # optional: allowed azp, comma-separated
 KEYCLOAK_ISSUER=                             # empty means {KEYCLOAK_BASE_URL}/realms/{realm}
 KEYCLOAK_JWKS_CACHE_TTL=3600
 ```
@@ -208,8 +209,20 @@ On a foreign or broken token the guard returns "no user" instead of throwing. Th
 What is checked:
 
 - an RS256 signature against the realm JWKS (`none` and HS* are rejected). Keys are cached; an unknown `kid` refetches the JWKS (key rotation), at most once a minute;
-- `iss`, `aud` contains `KEYCLOAK_API_AUDIENCE`, `azp` is in `KEYCLOAK_API_CLIENTS`;
-- `exp` is required, `exp` and `nbf` allow 30 s of clock skew (`keycloak.api.leeway`).
+- `iss`, `aud` contains `KEYCLOAK_API_AUDIENCE`;
+- `exp` is required, `exp` and `nbf` allow 30 s of clock skew (`keycloak.api.leeway`);
+- the access rule by role and `azp` list:
+
+| `KEYCLOAK_API_ROLE` | `KEYCLOAK_API_CLIENTS` | Who gets in |
+|---|---|---|
+| set | empty | a token with the role in `resource_access.{KEYCLOAK_API_AUDIENCE}.roles` |
+| set | set | a token with the role and an `azp` from the list |
+| empty | set | a token with an `azp` from the list |
+| empty | empty | nobody: `aud` alone is not enough for access |
+
+The role is looked up under the `KEYCLOAK_API_AUDIENCE` key, so it must match the API client id in Keycloak. A role of one client does not open the API of another.
+
+Tokens are checked locally, without introspection: a role removed in Keycloak stops working when the `exp` of an already issued token passes (5 minutes by default in Keycloak).
 
 If Keycloak is unreachable, the request gets a 401 and a warning goes to the log. A rejected token: info with `kid`, `iss`, `azp` and the reason. The token itself is never logged.
 
@@ -252,12 +265,20 @@ If Keycloak refuses or is unreachable, `Marchenkovma\LaravelKeycloak\Exceptions\
 
 ### Keycloak client setup
 
-1. The client that calls the API (e.g. `reports-api`):
+The main way: access by role. A new client gets access when the role is granted and loses it when the role is removed, the API is not redeployed.
+
+1. On the receiving API client (`orders-api`), add the `api` role under Client roles.
+2. The client that calls the API (e.g. `reports-api`):
    - Client authentication ON (confidential);
    - Service accounts roles ON;
-   - Standard flow and Direct access grants OFF.
-2. An audience mapper on that client: Included Custom Audience = the receiving API audience (`orders-api`), Add to access token ON. A client scope with such a mapper works too.
-3. Only the calling side needs the client secret. The receiving API does not.
+   - Standard flow and Direct access grants OFF;
+   - on the Service account roles tab, assign the `orders-api`: `api` role.
+3. The `roles` client scope must be among the Default client scopes of the calling client (it is there by default). Its Audience Resolve mapper adds `orders-api` to `aud` by itself, since the token has roles of that client, and the `client roles` mapper needs Add to access token on. A separate audience mapper is not needed.
+4. Check: Clients, `reports-api`, Client scopes, Evaluate, user `service-account-reports-api`, Generated access token. The token must have `aud` with `orders-api` and `resource_access.orders-api.roles` with `api`.
+
+The second way: an `azp` list. The calling client gets an Audience mapper (Included Custom Audience = `orders-api`, Add to access token ON), and its client id goes to `KEYCLOAK_API_CLIENTS` of the receiving API. Every new client means editing `.env` and redeploying the API.
+
+Only the calling side needs the client secret. The receiving API does not.
 
 Manual check:
 
@@ -283,22 +304,24 @@ abstract class TestCase extends BaseTestCase
 ```php
 // API: a real RS256 token, fully checked by the guard, no Keycloak needed
 $this->withKeycloakToken()->getJson('/api/v1/orders')->assertOk();
-$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->assertUnauthorized();
+$this->withKeycloakToken(['resource_access' => null])->getJson('/api/v1/orders')->assertUnauthorized();
+$this->withKeycloakToken(['resource_access' => ['orders-api' => ['roles' => ['other']]]])
+    ->getJson('/api/v1/orders')->assertUnauthorized();
 
 // Sign a user in with a role in the session, no Socialite
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
-The trait takes `iss`, `aud` and `azp` from the config, so the project `phpunit.xml` must define `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` and `KEYCLOAK_API_CLIENTS`. Without `KEYCLOAK_API_AUDIENCE` the guard answers 401 to every token.
+The trait takes the token claims from the config, so the project `phpunit.xml` must define `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` and `KEYCLOAK_API_ROLE` (or `KEYCLOAK_API_CLIENTS` for access by `azp` list). Without `KEYCLOAK_API_AUDIENCE` the guard answers 401 to every token, and so it does when neither `KEYCLOAK_API_ROLE` nor `KEYCLOAK_API_CLIENTS` is set.
 
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
 <env name="KEYCLOAK_REALM" value="corp"/>
 <env name="KEYCLOAK_API_AUDIENCE" value="orders-api"/>
-<env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
+<env name="KEYCLOAK_API_ROLE" value="api"/>
 ```
 
-- `withKeycloakToken()` generates an RSA key and gives its public part to the guard in place of the Keycloak JWKS. The guard touches neither the network nor the cache, so the project's own `Http::fake` does not interfere, `Http::assertNothingSent()` passes, and any test cache store works. Default claims come from the config: `iss`, `aud` and the first of `KEYCLOAK_API_CLIENTS`. A `null` value removes a claim.
+- `withKeycloakToken()` generates an RSA key and gives its public part to the guard in place of the Keycloak JWKS. The guard touches neither the network nor the cache, so the project's own `Http::fake` does not interfere, `Http::assertNothingSent()` passes, and any test cache store works. Default claims come from the config: `iss`, `aud`, the `KEYCLOAK_API_ROLE` role in `resource_access`, and `azp` as the first of `KEYCLOAK_API_CLIENTS` (no list, no `azp` in the token). A `null` value removes a claim.
 - `keycloakToken($claims)` returns the token itself, e.g. for custom headers.
 - Several `withKeycloakToken()` calls in one test work: before each one the trait drops the user remembered by the guard. If a token from `keycloakToken()` is sent in a custom header, call `app('auth')->forgetGuards()` yourself before the second request.
 

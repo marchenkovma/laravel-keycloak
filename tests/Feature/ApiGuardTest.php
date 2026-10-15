@@ -84,6 +84,22 @@ it('KeycloakClient exposes claims, resource_access roles and scope', function ()
         ->assertExactJson(['azp' => 'reports-api', 'role' => true, 'foreign_role' => false, 'scope' => true, 'foreign_scope' => false]);
 });
 
+it('KeycloakClient::hasRole accepts roles as a string: a mapper without Multivalued', function () {
+    $client = new KeycloakClient(['resource_access' => ['orders-api' => ['roles' => 'read']]]);
+
+    expect($client->hasRole('orders-api', 'read'))->toBeTrue()
+        ->and($client->hasRole('orders-api', 'write'))->toBeFalse()
+        ->and($client->hasRole('other-api', 'read'))->toBeFalse();
+});
+
+it('KeycloakClient::hasRole survives a malformed resource_access', function (mixed $resourceAccess) {
+    expect((new KeycloakClient(['resource_access' => $resourceAccess]))->hasRole('orders-api', 'read'))->toBeFalse();
+})->with([
+    'string' => ['orders-api'],
+    'client entry is a string' => [['orders-api' => 'read']],
+    'roles with non-strings' => [['orders-api' => ['roles' => [null, ['read'], 42]]]],
+]);
+
 it('accepts aud as a string', function () {
     ping(signedToken($this->key, ['aud' => 'orders-api']))->assertOk();
 });
@@ -137,6 +153,56 @@ it('refuses everyone without a configured audience', function () {
     config(['keycloak.api.audience' => null]);
 
     ping(signedToken($this->key))->assertUnauthorized();
+});
+
+it('refuses everyone without api.role and api.clients: aud alone grants no access', function () {
+    config(['keycloak.api.role' => null, 'keycloak.api.clients' => '']);
+    Log::spy();
+
+    ping(signedToken($this->key))->assertUnauthorized();
+
+    Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context) => $context['reason'] === 'access rule not configured');
+});
+
+describe('access by client role', function () {
+    beforeEach(function () {
+        config(['keycloak.api.role' => 'api', 'keycloak.api.clients' => '']);
+    });
+
+    it('allows a token with the role in resource_access of the audience, whatever the azp', function () {
+        ping(signedToken($this->key, ['azp' => 'stranger', 'resource_access' => ['orders-api' => ['roles' => ['read', 'api']]]]))
+            ->assertOk()
+            ->assertJson(['id' => 'stranger']);
+    });
+
+    it('accepts roles as a string: a mapper without Multivalued', function () {
+        ping(signedToken($this->key, ['resource_access' => ['orders-api' => ['roles' => 'api']]]))->assertOk();
+    });
+
+    it('refuses without the role (401, role missing)', function (mixed $resourceAccess) {
+        Log::spy();
+
+        ping(signedToken($this->key, ['resource_access' => $resourceAccess]))->assertUnauthorized();
+
+        Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context) => $context['reason'] === 'role missing');
+    })->with([
+        'no resource_access' => [null],
+        'another role of the same client' => [['orders-api' => ['roles' => ['read']]]],
+        // Роль одного клиента не открывает API другого
+        'the role under another client' => [['other-api' => ['roles' => ['api']]]],
+        'resource_access as a string' => ['api'],
+        'client entry is a string' => [['orders-api' => 'api']],
+        'roles with non-strings' => [['orders-api' => ['roles' => [null, ['api'], 42]]]],
+    ]);
+
+    it('with api.clients set, both the role and an allowed azp are required', function () {
+        config(['keycloak.api.clients' => 'reports-api']);
+        $withRole = ['resource_access' => ['orders-api' => ['roles' => ['api']]]];
+
+        ping(signedToken($this->key, $withRole))->assertOk();
+        ping(signedToken($this->key, [...$withRole, 'azp' => 'stranger']))->assertUnauthorized();
+        ping(signedToken($this->key))->assertUnauthorized();
+    });
 });
 
 it('JWKS unavailable: 401 instead of 500, a warning without the token', function () {

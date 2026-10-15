@@ -187,8 +187,9 @@ Guard `keycloak` проверяет `Authorization: Bearer <jwt>`, то есть
 ```
 
 ```dotenv
-KEYCLOAK_API_AUDIENCE=orders-api            # aud, который должен быть в токене
-KEYCLOAK_API_CLIENTS=reports-api,other      # разрешённые azp через запятую
+KEYCLOAK_API_AUDIENCE=orders-api            # aud в токене, он же client id API в Keycloak
+KEYCLOAK_API_ROLE=api                        # роль клиента-API, которая даёт доступ
+KEYCLOAK_API_CLIENTS=                        # необязательно: разрешённые azp через запятую
 KEYCLOAK_ISSUER=                             # пусто: {KEYCLOAK_BASE_URL}/realms/{realm}
 KEYCLOAK_JWKS_CACHE_TTL=3600
 ```
@@ -208,8 +209,20 @@ Route::middleware('auth:keycloak,sanctum')->group(...);
 Что проверяется:
 
 - подпись RS256 по JWKS realm-а (`none` и HS* отвергаются). Ключи кешируются, неизвестный `kid` перечитывает JWKS (ротация), но не чаще раза в минуту;
-- `iss`, `aud` содержит `KEYCLOAK_API_AUDIENCE`, `azp` из `KEYCLOAK_API_CLIENTS`;
-- `exp` обязателен, `exp` и `nbf` проверяются с допуском 30 с (`keycloak.api.leeway`).
+- `iss`, `aud` содержит `KEYCLOAK_API_AUDIENCE`;
+- `exp` обязателен, `exp` и `nbf` проверяются с допуском 30 с (`keycloak.api.leeway`);
+- правило доступа по роли и списку `azp`:
+
+| `KEYCLOAK_API_ROLE` | `KEYCLOAK_API_CLIENTS` | Кого пускает |
+|---|---|---|
+| задана | пусто | токен с ролью в `resource_access.{KEYCLOAK_API_AUDIENCE}.roles` |
+| задана | задан | токен с ролью и `azp` из списка |
+| пусто | задан | токен с `azp` из списка |
+| пусто | пусто | никого: одного `aud` для доступа мало |
+
+Роль ищется под ключом `KEYCLOAK_API_AUDIENCE`, поэтому он должен совпадать с client id API в Keycloak. Роль одного клиента не открывает API другого.
+
+Токен проверяется локально, без introspection: снятая в Keycloak роль перестаёт действовать, когда истечёт `exp` уже выданного токена (в Keycloak по умолчанию 5 минут).
 
 Если Keycloak недоступен, запрос получает 401, а в лог пишется warning. При отказе по токену в лог идёт info с `kid`, `iss`, `azp` и причиной. Сам токен в лог не пишется.
 
@@ -252,12 +265,20 @@ Http::withToken(Keycloak::serviceToken())->get('https://orders.example.com/api/v
 
 ### Настройка клиента в Keycloak
 
-1. Клиент, который будет ходить в API (например, `reports-api`):
+Основной способ: доступ по роли. Новый клиент получает доступ выдачей роли, отзыв делается снятием роли, перевыкладывать API не нужно.
+
+1. На клиенте принимающего API (`orders-api`) в Client roles заведите роль `api`.
+2. Клиент, который будет ходить в API (например, `reports-api`):
    - Client authentication ON (confidential);
    - Service accounts roles ON;
-   - Standard flow и Direct access grants OFF.
-2. Audience mapper на этом клиенте: Included Custom Audience = audience принимающего API (`orders-api`), Add to access token ON. Вместо этого можно взять client scope с таким mapper-ом.
-3. Секрет клиента нужен только вызывающей стороне. Принимающему API он не нужен.
+   - Standard flow и Direct access grants OFF;
+   - на вкладке Service account roles выдайте роль `orders-api`: `api`.
+3. Client scope `roles` должен быть среди Default client scopes вызывающего клиента (по умолчанию он там есть). Его mapper Audience Resolve сам добавляет `orders-api` в `aud`, раз в токене есть роли этого клиента, а у mapper-а `client roles` должен быть включён Add to access token. Отдельный audience mapper не нужен.
+4. Проверка: Clients, `reports-api`, Client scopes, Evaluate, пользователь `service-account-reports-api`, Generated access token. В токене должны быть `aud` с `orders-api` и `resource_access.orders-api.roles` с `api`.
+
+Второй способ: список `azp`. На вызывающем клиенте ставится Audience mapper (Included Custom Audience = `orders-api`, Add to access token ON), а его client id добавляется в `KEYCLOAK_API_CLIENTS` принимающего API. Каждый новый клиент требует правки `.env` и перевыкладки API.
+
+Секрет клиента нужен только вызывающей стороне. Принимающему API он не нужен.
 
 Проверка руками:
 
@@ -283,22 +304,24 @@ abstract class TestCase extends BaseTestCase
 ```php
 // API: настоящий RS256-токен, guard проверяет его полностью, без Keycloak
 $this->withKeycloakToken()->getJson('/api/v1/orders')->assertOk();
-$this->withKeycloakToken(['azp' => 'stranger'])->getJson('/api/v1/orders')->assertUnauthorized();
+$this->withKeycloakToken(['resource_access' => null])->getJson('/api/v1/orders')->assertUnauthorized();
+$this->withKeycloakToken(['resource_access' => ['orders-api' => ['roles' => ['other']]]])
+    ->getJson('/api/v1/orders')->assertUnauthorized();
 
 // Вход пользователя с ролью в сессии, без Socialite
 $this->actingAsKeycloakUser($user, 'admin')->get('/')->assertOk();
 ```
 
-Трейт берёт `iss`, `aud` и `azp` из конфига, поэтому в `phpunit.xml` проекта должны быть заданы `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_CLIENTS`. Без `KEYCLOAK_API_AUDIENCE` guard отвечает 401 на любой токен.
+Трейт берёт claims токена из конфига, поэтому в `phpunit.xml` проекта должны быть заданы `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_ROLE` (или `KEYCLOAK_API_CLIENTS`, если доступ по списку `azp`). Без `KEYCLOAK_API_AUDIENCE` guard отвечает 401 на любой токен, как и без `KEYCLOAK_API_ROLE` и `KEYCLOAK_API_CLIENTS` одновременно.
 
 ```xml
 <env name="KEYCLOAK_BASE_URL" value="https://keycloak.test"/>
 <env name="KEYCLOAK_REALM" value="corp"/>
 <env name="KEYCLOAK_API_AUDIENCE" value="orders-api"/>
-<env name="KEYCLOAK_API_CLIENTS" value="reports-api"/>
+<env name="KEYCLOAK_API_ROLE" value="api"/>
 ```
 
-- `withKeycloakToken()` генерирует ключ RSA и подставляет его публичную часть в guard вместо JWKS Keycloak. Guard не ходит ни в сеть, ни в кеш, поэтому `Http::fake` проекта ему не мешает, `Http::assertNothingSent()` проходит, а хранилище кеша в тестах может быть любым. Claims по умолчанию берутся из конфига: `iss`, `aud` и первый из `KEYCLOAK_API_CLIENTS`. Значение `null` убирает claim.
+- `withKeycloakToken()` генерирует ключ RSA и подставляет его публичную часть в guard вместо JWKS Keycloak. Guard не ходит ни в сеть, ни в кеш, поэтому `Http::fake` проекта ему не мешает, `Http::assertNothingSent()` проходит, а хранилище кеша в тестах может быть любым. Claims по умолчанию берутся из конфига: `iss`, `aud`, роль `KEYCLOAK_API_ROLE` в `resource_access` и `azp`, первый из `KEYCLOAK_API_CLIENTS` (без списка `azp` в токене нет). Значение `null` убирает claim.
 - `keycloakToken($claims)` отдаёт сам токен, например для своих заголовков.
 - Несколько вызовов `withKeycloakToken()` в одном тесте работают: перед каждым трейт сбрасывает запомненного guard-ом пользователя. Если токен из `keycloakToken()` отправляется своим заголовком, перед вторым запросом вызовите `app('auth')->forgetGuards()` сами.
 

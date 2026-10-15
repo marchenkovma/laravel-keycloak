@@ -44,6 +44,28 @@ it('the guard rejects a token of a client outside the list', function () {
     $this->withKeycloakToken(['azp' => 'stranger'])->getJson('api/whoami')->assertUnauthorized();
 });
 
+describe('with api.role', function () {
+    beforeEach(function () {
+        config(['keycloak.api.role' => 'api', 'keycloak.api.clients' => '']);
+    });
+
+    it('withKeycloakToken puts the role into the token and passes without azp', function () {
+        Route::get('api/claims', fn (Request $request) => $request->user()->claims)->middleware('auth:keycloak');
+
+        $this->withKeycloakToken()->getJson('api/claims')
+            ->assertOk()
+            ->assertJsonPath('resource_access.orders-api.roles', ['api'])
+            ->assertJsonMissingPath('azp');
+    });
+
+    it('the guard refuses a token without the role', function (mixed $resourceAccess) {
+        $this->withKeycloakToken(['resource_access' => $resourceAccess])->getJson('api/whoami')->assertUnauthorized();
+    })->with([
+        'resource_access removed' => [null],
+        'another role' => [['orders-api' => ['roles' => ['other']]]],
+    ]);
+});
+
 it('several requests in one test, each with its own token', function () {
     $this->withKeycloakToken()->getJson('api/whoami')->assertJson(['azp' => 'reports-api']);
     $this->withKeycloakToken(['azp' => 'other-api'])->getJson('api/whoami')->assertJson(['azp' => 'other-api']);

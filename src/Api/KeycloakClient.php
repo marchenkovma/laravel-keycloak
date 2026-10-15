@@ -27,10 +27,29 @@ class KeycloakClient implements Authenticatable
      */
     public function hasRole(string $resource, string $role): bool
     {
-        $access = $this->claims['resource_access'] ?? [];
-        $roles = is_array($access) && is_array($access[$resource] ?? null) ? ($access[$resource]['roles'] ?? []) : [];
+        return in_array($role, self::resourceRoles($this->claims, $resource) ?? [], true);
+    }
 
-        return is_array($roles) && in_array($role, $roles, true);
+    /**
+     * Роли клиента $resource из resource_access.{resource}.roles, null без
+     * записи этого клиента. Общий разбор для guard-а, входа пользователей
+     * и hasRole(): одна роль строкой (mapper без Multivalued) становится
+     * списком, а не строки отбрасываются.
+     *
+     * @internal
+     *
+     * @param  array<mixed>  $claims
+     * @return list<string>|null
+     */
+    public static function resourceRoles(array $claims, string $resource): ?array
+    {
+        $access = $claims['resource_access'] ?? null;
+
+        if (! is_array($access) || ! is_array($access[$resource] ?? null)) {
+            return null;
+        }
+
+        return array_values(array_filter((array) ($access[$resource]['roles'] ?? []), 'is_string'));
     }
 
     /**

@@ -44,8 +44,17 @@ return [
     // Проверка токенов сервисных клиентов в API (guard keycloak)
     'api' => [
         'issuer' => env('KEYCLOAK_ISSUER'),            // null: {base_url}/realms/{realm}
-        'audience' => env('KEYCLOAK_API_AUDIENCE'),
-        'clients' => env('KEYCLOAK_API_CLIENTS', ''),  // azp через запятую
+        'audience' => env('KEYCLOAK_API_AUDIENCE'),    // client id API в Keycloak
+
+        // Роль клиента-API (resource_access.{audience}.roles), которая даёт
+        // доступ. Выдаётся вызывающему клиенту в Keycloak на вкладке
+        // Service account roles. Пусто: роль не проверяется
+        'role' => env('KEYCLOAK_API_ROLE'),
+
+        // Необязательное сужение по azp, через запятую. С ролью нужно и то,
+        // и другое. Без роли и без списка токен не пускается никогда
+        'clients' => env('KEYCLOAK_API_CLIENTS', ''),
+
         'jwks_cache_ttl' => (int) env('KEYCLOAK_JWKS_CACHE_TTL', 3600),
         'leeway' => 30,                                // допуск exp/nbf, секунды
     ],

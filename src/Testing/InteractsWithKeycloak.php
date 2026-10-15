@@ -27,8 +27,8 @@ trait InteractsWithKeycloak
 
     /**
      * Следующие запросы теста идут с Authorization: Bearer <jwt>.
-     * Claims по умолчанию из конфига: iss, aud, первый из api.clients.
-     * null в значении убирает claim.
+     * Claims по умолчанию из конфига: iss, aud, роль api.role
+     * в resource_access и первый из api.clients. null в значении убирает claim.
      *
      * @param  array<string, mixed>  $claims
      */

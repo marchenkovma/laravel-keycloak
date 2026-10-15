@@ -55,6 +55,10 @@ class TokenVerifier
             return null;
         }
 
+        // php-jwt отдаёт вложенные claims объектами, resource_access нужен массивом
+        /** @var array<string, mixed> $claims */
+        $claims = json_decode((string) json_encode($claims), true);
+
         $reason = $this->invalidClaim($claims);
 
         if ($reason !== null) {
@@ -63,22 +67,26 @@ class TokenVerifier
             return null;
         }
 
-        /** @var array<string, mixed> */
-        return json_decode((string) json_encode($claims), true);
+        return $claims;
     }
 
     /**
-     * Claims, с которыми токен пройдёт проверку: iss, aud и первый из
-     * разрешённых azp. По ним трейт InteractsWithKeycloak собирает тестовый токен.
+     * Claims, с которыми токен пройдёт проверку: iss, aud, первый из
+     * разрешённых azp и роль api.role в resource_access. По ним трейт
+     * InteractsWithKeycloak собирает тестовый токен.
      *
-     * @return array{iss: string, aud: string|null, azp: string|null}
+     * @return array{iss: string, aud: string|null, azp: string|null, resource_access: array<string, array{roles: list<string>}>|null}
      */
     public function acceptedClaims(): array
     {
+        $audience = $this->audience();
+        $role = $this->role();
+
         return [
             'iss' => $this->issuer(),
-            'aud' => $this->audience(),
+            'aud' => $audience,
             'azp' => $this->clients()[0] ?? null,
+            'resource_access' => $audience !== null && $role !== null ? [$audience => ['roles' => [$role]]] : null,
         ];
     }
 
@@ -91,13 +99,24 @@ class TokenVerifier
     {
         $audience = $this->audience();
 
+        if ($audience === null) {
+            return 'audience not configured';
+        }
+
+        $role = $this->role();
+        $clients = $this->clients();
+
         return match (true) {
             // php-jwt проверяет срок, только если exp есть
             ! isset($claims['exp']) => 'exp missing',
             ($claims['iss'] ?? null) !== $this->issuer() => 'iss mismatch',
-            $audience === null => 'audience not configured',
             ! in_array($audience, (array) ($claims['aud'] ?? []), true) => 'aud mismatch',
-            ! in_array($claims['azp'] ?? null, $this->clients(), true) => 'azp not allowed',
+            // Одного aud для доступа мало: audience mapper легко поставить
+            // в общий client scope, и доступ получили бы все клиенты
+            $role === null && $clients === [] => 'access rule not configured',
+            // Роли под client id принимающего API: его ставит в aud Audience Resolve
+            $role !== null && ! in_array($role, KeycloakClient::resourceRoles($claims, $audience) ?? [], true) => 'role missing',
+            $clients !== [] && ! in_array($claims['azp'] ?? null, $clients, true) => 'azp not allowed',
             default => null,
         };
     }
@@ -114,6 +133,13 @@ class TokenVerifier
         $audience = $this->config->get('keycloak.api.audience');
 
         return is_string($audience) && $audience !== '' ? $audience : null;
+    }
+
+    private function role(): ?string
+    {
+        $role = $this->config->get('keycloak.api.role');
+
+        return is_string($role) && trim($role) !== '' ? trim($role) : null;
     }
 
     /**
