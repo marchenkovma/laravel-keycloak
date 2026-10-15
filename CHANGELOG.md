@@ -1,6 +1,16 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.4.0...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.0...HEAD)
+
+## [v0.5.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.4.0...v0.5.0) - 2026-10-15
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13. Несовместимых изменений нет.
+
+### Вход пользователей
+
+- Заготовка публичной страницы входа для проектов на Inertia и Vue: `php artisan vendor:publish --tag=keycloak-welcome` копирует `app/Http/Controllers/Auth/WelcomeController.php` и `resources/js/pages/Welcome.vue`. После публикации это код проекта. Маршрут `welcome` и `after_logout`/`on_failure` проект прописывает сам, см. README, раздел «Страница входа».
+- Страница не начинает вход сама: после выхода человек видит кнопку «Войти» и сообщение по `auth_notice`, а не форму Keycloak, которая без присмотра устаревает и даёт `session_expired`.
+- Тексты страницы в переводах пакета `keycloak::messages.welcome` (ru, en), `laravel-vue-i18n` в проекте не нужен. Общий тег `keycloak` заготовку не публикует.
 
 ## [v0.4.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.3.0...v0.4.0) - 2026-10-15
 
