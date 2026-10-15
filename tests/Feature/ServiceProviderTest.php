@@ -78,3 +78,39 @@ it('lets the project override the denied message', function () {
 
     expect(__('keycloak::messages.denied'))->toBe('Свой текст');
 });
+
+it('publishes the welcome page stubs with the keycloak-welcome tag', function () {
+    $paths = ServiceProvider::pathsToPublish(KeycloakServiceProvider::class, 'keycloak-welcome');
+
+    expect(array_values($paths))->toBe([
+        app_path('Http/Controllers/Auth/WelcomeController.php'),
+        resource_path('js/pages/Welcome.vue'),
+    ]);
+
+    foreach (array_keys($paths) as $stub) {
+        expect($stub)->toBeFile();
+    }
+});
+
+it('keeps the welcome page stubs out of the keycloak tag', function () {
+    $paths = ServiceProvider::pathsToPublish(KeycloakServiceProvider::class, 'keycloak');
+
+    expect($paths)->not->toContain(resource_path('js/pages/Welcome.vue'))
+        ->and($paths)->not->toContain(app_path('Http/Controllers/Auth/WelcomeController.php'));
+});
+
+it('translates every auth_notice for the welcome page with the app name', function (string $locale, string $notice) {
+    app()->setLocale($locale);
+
+    $key = 'keycloak::messages.welcome.notice_'.$notice;
+
+    expect(__($key, ['app' => 'Demo']))->not->toBe($key)
+        ->and(__('keycloak::messages.welcome.notice_signed_out', ['app' => 'Demo']))->toContain('Demo');
+})->with(['ru', 'en'])->with(['signed_out', 'session_expired', 'login_failed']);
+
+it('has the same welcome page texts in every locale', function () {
+    $ru = require __DIR__.'/../../lang/ru/messages.php';
+    $en = require __DIR__.'/../../lang/en/messages.php';
+
+    expect(array_keys($en['welcome']))->toBe(array_keys($ru['welcome']));
+});

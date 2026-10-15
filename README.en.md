@@ -132,6 +132,33 @@ The session keeps an `auth_notice` flash so the page can explain what happened:
 
 Logout goes to the Keycloak end_session endpoint with `id_token_hint`. For an Inertia request (`X-Inertia` header) the package responds with `409` and `X-Inertia-Location`, otherwise with a regular redirect.
 
+### Sign-in page
+
+If `after_logout` points to a route behind `auth`, the guest goes straight to `auth/login` and on to the Keycloak form. A user who has just signed out sees the login form without asking for it, and if it stays open longer than the session lives, the login ends with `session_expired`. Send logout and failed logins to a public page with a "Sign in" button instead.
+
+For Inertia and Vue projects (the Laravel starter kit: shadcn-vue, Wayfinder, `AppLogoIcon`) the package ships a stub of such a page:
+
+```bash
+php artisan vendor:publish --tag=keycloak-welcome
+```
+
+The command copies `app/Http/Controllers/Auth/WelcomeController.php` and `resources/js/pages/Welcome.vue`. Once published, this is project code: the package does not update it, adjust it as you like. Then add the route and the redirects:
+
+```php
+// routes/web.php
+use App\Http\Controllers\Auth\WelcomeController;
+
+Route::get('welcome', WelcomeController::class)->middleware('guest')->name('welcome');
+```
+
+```php
+// config/keycloak.php
+'after_logout' => 'welcome',
+'on_failure' => 'welcome',
+```
+
+The page texts come from `keycloak::messages.welcome` (ru, en), the sign-out message uses `config('app.name')`.
+
 ### What to add to `bootstrap/app.php`
 
 Web guests should go to the login page, API guests should get a JSON 401:
@@ -169,7 +196,7 @@ In bypass mode the same `resolve()` receives a fake user: username `bypass`, nam
 
 ### Texts
 
-The 403 text comes from the `keycloak::messages.denied` translation (ru, en). Put your own text in `lang/vendor/keycloak/en/messages.php`, or publish the files:
+The 403 text comes from the `keycloak::messages.denied` translation, the sign-in page texts from `keycloak::messages.welcome` (ru, en). Put your own texts in `lang/vendor/keycloak/en/messages.php`, or publish the files:
 
 ```bash
 php artisan vendor:publish --tag=keycloak-lang

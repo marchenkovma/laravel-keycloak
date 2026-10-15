@@ -69,6 +69,13 @@ class KeycloakServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../lang' => $this->app->langPath('vendor/keycloak'),
         ], ['keycloak', 'keycloak-lang']);
+
+        // Заготовка страницы входа под Inertia и Vue, не входит в общий тег
+        // keycloak: после публикации файлы принадлежат проекту
+        $this->publishes([
+            __DIR__.'/../stubs/welcome/WelcomeController.php.stub' => $this->app->path('Http/Controllers/Auth/WelcomeController.php'),
+            __DIR__.'/../stubs/welcome/Welcome.vue.stub' => $this->app->resourcePath('js/pages/Welcome.vue'),
+        ], 'keycloak-welcome');
     }
 
     /**

@@ -1,0 +1,57 @@
+<script setup lang="ts">
+import { Head, usePage } from '@inertiajs/vue3';
+import { Info, LogOut } from '@lucide/vue';
+import { computed } from 'vue';
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { login } from '@/routes/auth';
+
+// Заготовка пакета laravel-keycloak, после публикации принадлежит проекту.
+// Тексты приходят из keycloak::messages.welcome через WelcomeController
+const props = defineProps<{
+    // Почему человек здесь: вышел сам, форма входа устарела или вход
+    // отменён в Keycloak
+    notice: 'signed_out' | 'session_expired' | 'login_failed' | null;
+    texts: {
+        title: string;
+        signIn: string;
+        hint: string;
+        notice: string | null;
+    };
+}>();
+
+const name = usePage().props.name;
+
+const noticeIcon = computed(() =>
+    props.notice === 'signed_out' ? LogOut : Info,
+);
+</script>
+
+<template>
+    <Head :title="texts.title" />
+    <div class="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+        <div
+            class="w-full max-w-sm space-y-6 rounded-xl border bg-card p-8 shadow-sm"
+        >
+            <div class="flex flex-col items-center gap-3 text-center">
+                <AppLogoIcon class="size-16" />
+                <h1 class="text-2xl font-semibold">{{ name }}</h1>
+            </div>
+
+            <Alert v-if="texts.notice">
+                <component :is="noticeIcon" />
+                <AlertDescription>{{ texts.notice }}</AlertDescription>
+            </Alert>
+
+            <!-- Обычная ссылка, не Inertia: /auth/login уводит на Keycloak -->
+            <Button as-child size="lg" class="w-full">
+                <a :href="login().url">{{ texts.signIn }}</a>
+            </Button>
+
+            <p class="text-center text-xs text-muted-foreground">
+                {{ texts.hint }}
+            </p>
+        </div>
+    </div>
+</template>

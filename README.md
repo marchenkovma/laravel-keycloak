@@ -132,6 +132,33 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // только
 
 Выход идёт на end_session Keycloak с `id_token_hint`. Для Inertia-запроса (заголовок `X-Inertia`) пакет отвечает `409` с `X-Inertia-Location`, иначе обычным redirect.
 
+### Страница входа
+
+Если `after_logout` ведёт на маршрут под `auth`, гостя сразу уводит на `auth/login`, а оттуда на форму Keycloak. Человек, который только что вышел, видит форму входа без спроса, а если она провисит дольше жизни сессии, вход закончится `session_expired`. Лучше вести выход и неудавшийся вход на публичную страницу с кнопкой «Войти».
+
+Для проектов на Inertia и Vue (стартовый набор Laravel: shadcn-vue, Wayfinder, `AppLogoIcon`) в пакете есть заготовка такой страницы:
+
+```bash
+php artisan vendor:publish --tag=keycloak-welcome
+```
+
+Команда копирует `app/Http/Controllers/Auth/WelcomeController.php` и `resources/js/pages/Welcome.vue`. После публикации это код проекта: пакет его не обновляет, правьте под себя. Дальше маршрут и переадресации:
+
+```php
+// routes/web.php
+use App\Http\Controllers\Auth\WelcomeController;
+
+Route::get('welcome', WelcomeController::class)->middleware('guest')->name('welcome');
+```
+
+```php
+// config/keycloak.php
+'after_logout' => 'welcome',
+'on_failure' => 'welcome',
+```
+
+Тексты страницы берутся из `keycloak::messages.welcome` (ru, en), сообщение о выходе подставляет `config('app.name')`.
+
 ### Что прописать в `bootstrap/app.php`
 
 Гостя web-страницы нужно отправить на вход, а гостю API отдать JSON 401:
@@ -169,7 +196,7 @@ $this->app->bind(ResolvesKeycloakUser::class, MyKeycloakUsers::class);
 
 ### Тексты
 
-Текст ответа 403 берётся из переводов `keycloak::messages.denied` (ru, en). Свой текст положите в `lang/vendor/keycloak/ru/messages.php` или опубликуйте файлы:
+Текст ответа 403 берётся из переводов `keycloak::messages.denied`, тексты страницы входа из `keycloak::messages.welcome` (ru, en). Свои тексты положите в `lang/vendor/keycloak/ru/messages.php` или опубликуйте файлы:
 
 ```bash
 php artisan vendor:publish --tag=keycloak-lang
