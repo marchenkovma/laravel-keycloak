@@ -29,8 +29,8 @@ describe('login', function () {
         $this->get(route('auth.login'))->assertRedirect(route('home'));
 
         $this->assertAuthenticated();
-        expect(session('keycloak.role'))->toBe('user')
-            ->and(session('keycloak.id_token'))->toBeNull()
+        expect(Keycloak::role())->toBe('user')
+            ->and(Keycloak::idToken())->toBeNull()
             ->and(User::sole()->username)->toBe('bypass')
             ->and(User::sole()->name)->toBe(__('keycloak::messages.bypass_name'));
     });
@@ -69,8 +69,8 @@ describe('callback', function () {
         $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
 
         $this->assertAuthenticated();
-        expect(session('keycloak.role'))->toBe('user')
-            ->and(session('keycloak.id_token'))->toBe('fake-id-token');
+        expect(Keycloak::role())->toBe('user')
+            ->and(Keycloak::idToken())->toBe('fake-id-token');
 
         $user = User::sole();
         expect($user->username)->toBe('ivanov')
@@ -114,22 +114,6 @@ describe('callback', function () {
         $this->withSession(['url.intended' => url('/any-role')])
             ->get(route('auth.callback').'?code=x&state=y')
             ->assertRedirect(url('/any-role'));
-    });
-
-    it('role by group: the first match by priority', function () {
-        fakeKeycloakUser(groups: ['/apps/employees/user', '/Administrators']);
-
-        $this->get(route('auth.callback').'?code=x&state=y');
-
-        expect(session('keycloak.role'))->toBe('admin');
-    });
-
-    it('role by client role (claim roles)', function () {
-        fakeKeycloakUser(roles: ['admin']);
-
-        $this->get(route('auth.callback').'?code=x&state=y');
-
-        expect(session('keycloak.role'))->toBe('admin');
     });
 
     it('without application groups and roles: 403 with the translated text, no user created', function () {
@@ -196,14 +180,6 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
-    it('non-string values in the groups and roles claims are skipped instead of breaking the login', function () {
-        fakeKeycloakUser(groups: [['nested' => 'object'], 42, '/apps/employees/user'], roles: [null]);
-
-        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
-
-        expect(session('keycloak.role'))->toBe('user');
-    });
-
     it('the project implementation creates the user when it is bound', function () {
         app()->bind(ResolvesKeycloakUser::class, fn () => new class implements ResolvesKeycloakUser
         {
@@ -259,13 +235,40 @@ describe('logout', function () {
     });
 
     it('without id_token (bypass) redirects straight to after_logout, skipping Keycloak', function () {
-        $this->actingAsKeycloakUser(keycloakTestUser(), 'admin')->withSession(['keycloak' => ['role' => 'admin', 'id_token' => null]])
-            ->post(route('auth.logout'))
+        config(['keycloak.web.bypass' => true]);
+        $this->get(route('auth.login'))->assertRedirect(route('home'));
+
+        $this->post(route('auth.logout'))
             ->assertRedirect(route('home'))
             ->assertSessionHas('auth_notice', 'signed_out');
 
         $this->assertGuest();
     });
+});
+
+describe('role from claims', function () {
+    it('takes the first match by priority from the groups claim', function () {
+        expect(Keycloak::roleFor(['groups' => ['/apps/employees/user', '/Administrators']]))->toBe('admin');
+    });
+
+    it('takes a client role from the roles claim', function () {
+        expect(Keycloak::roleFor(['roles' => ['admin']]))->toBe('admin');
+    });
+
+    it('accepts a single group as a string: a mapper without multivalued', function () {
+        expect(Keycloak::roleFor(['groups' => '/apps/employees/user']))->toBe('user');
+    });
+
+    it('skips non-string values instead of failing', function () {
+        expect(Keycloak::roleFor(['groups' => [['nested' => 'object'], 42, '/apps/employees/user'], 'roles' => [null]]))->toBe('user');
+    });
+
+    it('no role without matching groups and roles', function (array $claims) {
+        expect(Keycloak::roleFor($claims))->toBeNull();
+    })->with([
+        'other group and role' => [['groups' => ['/some/other/group'], 'roles' => ['user']]],
+        'no claims' => [[]],
+    ]);
 });
 
 describe('role in the session', function () {

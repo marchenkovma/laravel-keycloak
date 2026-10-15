@@ -7,6 +7,7 @@ namespace Marchenkovma\LaravelKeycloak\Testing;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Marchenkovma\LaravelKeycloak\Api\TokenVerifier;
+use Marchenkovma\LaravelKeycloak\Keycloak;
 use RuntimeException;
 
 /**
@@ -70,9 +71,11 @@ trait InteractsWithKeycloak
      */
     public function actingAsKeycloakUser(Authenticatable $user, string $role): static
     {
-        return $this->actingAs($user)->withSession([
-            'keycloak' => ['role' => $role, 'id_token' => 'fake-id-token'],
-        ]);
+        // Запись сессии пишет сам пакет, как при настоящем входе
+        $this->actingAs($user)->startSession();
+        app(Keycloak::class)->storeSignIn($role, 'fake-id-token');
+
+        return $this;
     }
 
     /**

@@ -25,7 +25,7 @@
             <dt>Роль в сессии</dt>
             <dd>{{ Keycloak::role() }}</dd>
             <dt>id_token в сессии</dt>
-            <dd>{{ session('keycloak.id_token') ? 'есть' : 'нет (bypass)' }}</dd>
+            <dd>{{ Keycloak::idToken() !== null ? 'есть' : 'нет (bypass)' }}</dd>
         </dl>
 
         <p><a href="{{ route('admin') }}">Страница только для admin</a></p>

@@ -63,12 +63,7 @@ class KeycloakController
             return $this->failed('session_expired');
         }
 
-        $claims = $oidcUser->getRaw();
-
-        $role = $this->keycloak->roleFor(
-            (array) ($claims['groups'] ?? []),
-            (array) ($claims['roles'] ?? []),
-        );
+        $role = $this->keycloak->roleFor($oidcUser->getRaw());
 
         abort_if($role === null, 403, __('keycloak::messages.denied'));
 
@@ -80,7 +75,7 @@ class KeycloakController
 
     public function logout(Request $request): RedirectResponse|Response
     {
-        $idToken = $request->session()->get('keycloak.id_token');
+        $idToken = $this->keycloak->idToken();
 
         Auth::logout();
         $request->session()->invalidate();
@@ -91,7 +86,7 @@ class KeycloakController
         $afterLogout = route($this->stringConfig('web.redirects.after_logout'));
 
         // Без id_token (bypass) SSO-сессии в Keycloak нет, на end_session незачем
-        if (! is_string($idToken)) {
+        if ($idToken === null) {
             return redirect()->to($afterLogout);
         }
 
@@ -113,10 +108,7 @@ class KeycloakController
     {
         Auth::login($user);
         $request->session()->regenerate();
-        $request->session()->put('keycloak', [
-            'role' => $role,
-            'id_token' => $idToken,
-        ]);
+        $this->keycloak->storeSignIn($role, $idToken);
 
         return redirect()->intended(route($this->stringConfig('web.redirects.after_login')));
     }

@@ -14,6 +14,10 @@ use Marchenkovma\LaravelKeycloak\Exceptions\ServiceTokenException;
 
 class Keycloak
 {
+    // Запись входа в сессии: роль приложения и id_token для выхода.
+    // Форму записи знает только этот класс
+    private const string SESSION_KEY = 'keycloak';
+
     /** @var (Closure(array<string, mixed>): ?Authenticatable)|null */
     private ?Closure $apiClientResolver = null;
 
@@ -23,14 +27,37 @@ class Keycloak
     ) {}
 
     /**
+     * Запомнить вход в сессии. Вызывают callback, bypass и трейт тестов
+     * InteractsWithKeycloak, поэтому тесты проектов видят ту же запись, что прод.
+     */
+    public function storeSignIn(string $role, ?string $idToken): void
+    {
+        $this->app->make('session')->put(self::SESSION_KEY, [
+            'role' => $role,
+            'id_token' => $idToken,
+        ]);
+    }
+
+    /**
      * Роль приложения из сессии: её кладёт callback входа.
      */
     public function role(): ?string
     {
-        $role = $this->app->make('session')->get('keycloak.role');
+        $role = $this->app->make('session')->get(self::SESSION_KEY.'.role');
 
         // Пустая строка (например, KEYCLOAK_BYPASS_ROLE=) ролью не считается
         return is_string($role) && $role !== '' ? $role : null;
+    }
+
+    /**
+     * id_token входа для id_token_hint при выходе. null после bypass:
+     * SSO-сессии в Keycloak нет.
+     */
+    public function idToken(): ?string
+    {
+        $idToken = $this->app->make('session')->get(self::SESSION_KEY.'.id_token');
+
+        return is_string($idToken) && $idToken !== '' ? $idToken : null;
     }
 
     /**
@@ -44,21 +71,22 @@ class Keycloak
     }
 
     /**
-     * Роль по группам (claim `groups`) и ролям клиента (claim `roles`):
-     * первая совпавшая из keycloak.web.roles, иначе null (нет доступа).
+     * Роль по claims userinfo: группы (claim `groups`) и роли клиента
+     * (claim `roles`), первая совпавшая из keycloak.web.roles, иначе null
+     * (нет доступа).
      *
-     * @param  array<mixed>  $groups
-     * @param  array<mixed>  $clientRoles
+     * @param  array<mixed>  $claims
      */
-    public function roleFor(array $groups, array $clientRoles): ?string
+    public function roleFor(array $claims): ?string
     {
         /** @var array<string, array{groups?: list<string>, client_roles?: list<string>}> $roles */
         $roles = $this->config->get('keycloak.web.roles', []);
 
-        // Claims приходят из userinfo как есть: не строки (вложенный объект
+        // Claims приходят из userinfo как есть: одна группа строкой (mapper
+        // без multivalued) становится списком, а не строки (вложенный объект
         // от нестандартного mapper-а) уронили бы array_intersect
-        $groups = array_filter($groups, 'is_string');
-        $clientRoles = array_filter($clientRoles, 'is_string');
+        $groups = array_filter((array) ($claims['groups'] ?? []), 'is_string');
+        $clientRoles = array_filter((array) ($claims['roles'] ?? []), 'is_string');
 
         foreach ($roles as $role => $rule) {
             if (array_intersect($rule['groups'] ?? [], $groups) !== []

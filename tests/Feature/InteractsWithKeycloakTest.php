@@ -82,5 +82,6 @@ it('actingAsKeycloakUser signs the user in with a role in the session', function
     $this->actingAsKeycloakUser($user, 'admin')->get('/admin-only')->assertOk();
 
     $this->assertAuthenticatedAs($user);
-    expect(Keycloak::role())->toBe('admin');
+    expect(Keycloak::role())->toBe('admin')
+        ->and(Keycloak::idToken())->toBe('fake-id-token');
 });
