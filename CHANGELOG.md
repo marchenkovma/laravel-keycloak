@@ -1,6 +1,21 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.3.0...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.4.0...HEAD)
+
+## [v0.4.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.3.0...v0.4.0) - 2026-10-15
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13. Несовместимых изменений нет: с заданным `KEYCLOAK_API_CLIENTS` и без `KEYCLOAK_API_ROLE` guard работает как раньше.
+
+### API
+
+- Доступ по роли клиента-API: `KEYCLOAK_API_ROLE` (`keycloak.api.role`). Guard пускает токен, если роль есть в `resource_access.{KEYCLOAK_API_AUDIENCE}.roles`. Роль выдаётся вызывающему клиенту в Keycloak на вкладке Service account roles, `aud` добавляет стандартный mapper Audience Resolve, перевыкладывать API ради нового клиента не нужно.
+- `KEYCLOAK_API_CLIENTS` стал необязательным сужением по `azp`: вместе с ролью нужно и то, и другое. Без роли и без списка guard не пускает никого.
+- Новые причины отказа в логе: `role missing` и `access rule not configured`.
+- `KeycloakClient::hasRole()` принимает roles строкой (mapper без Multivalued), как вход пользователей и проверка KEYCLOAK_API_ROLE.
+
+### Тесты
+
+- При заданной роли `withKeycloakToken()` и `keycloakToken()` кладут её в `resource_access` сами. В `phpunit.xml` проекта достаточно `KEYCLOAK_API_AUDIENCE` и `KEYCLOAK_API_ROLE`. Отказ без роли проверяется через `withKeycloakToken(['resource_access' => null])`.
 
 ## [v0.3.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.2.0...v0.3.0) - 2026-10-15
 
