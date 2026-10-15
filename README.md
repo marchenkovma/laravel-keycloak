@@ -142,7 +142,7 @@ Route::middleware(['auth', 'keycloak.role:admin'])->group(...);  // только
 php artisan vendor:publish --tag=keycloak-welcome
 ```
 
-Команда копирует `app/Http/Controllers/Auth/WelcomeController.php` и `resources/js/pages/Welcome.vue`. После публикации это код проекта: пакет его не обновляет, правьте под себя. Дальше маршрут и переадресации:
+Команда копирует `app/Http/Controllers/Auth/WelcomeController.php` и `resources/js/pages/Welcome.vue`. После публикации это код проекта: пакет его не обновляет, правьте под себя. Дальше маршрут, переадресации и layout:
 
 ```php
 // routes/web.php
@@ -155,6 +155,13 @@ Route::get('welcome', WelcomeController::class)->middleware('guest')->name('welc
 // config/keycloak.php
 'after_logout' => 'welcome',
 'on_failure' => 'welcome',
+```
+
+Если в `resources/js/app.ts` layout по умолчанию задан для всех страниц, исключите из него `Welcome`, иначе страница входа откроется с боковым меню:
+
+```ts
+// resources/js/app.ts
+layout: (name) => (name === 'Welcome' ? null : AppLayout),
 ```
 
 Тексты страницы берутся из `keycloak::messages.welcome` (ru, en), сообщение о выходе подставляет `config('app.name')`.

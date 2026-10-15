@@ -142,7 +142,7 @@ For Inertia and Vue projects (the Laravel starter kit: shadcn-vue, Wayfinder, `A
 php artisan vendor:publish --tag=keycloak-welcome
 ```
 
-The command copies `app/Http/Controllers/Auth/WelcomeController.php` and `resources/js/pages/Welcome.vue`. Once published, this is project code: the package does not update it, adjust it as you like. Then add the route and the redirects:
+The command copies `app/Http/Controllers/Auth/WelcomeController.php` and `resources/js/pages/Welcome.vue`. Once published, this is project code: the package does not update it, adjust it as you like. Then add the route, the redirects and the layout:
 
 ```php
 // routes/web.php
@@ -155,6 +155,13 @@ Route::get('welcome', WelcomeController::class)->middleware('guest')->name('welc
 // config/keycloak.php
 'after_logout' => 'welcome',
 'on_failure' => 'welcome',
+```
+
+If `resources/js/app.ts` sets a default layout for every page, exclude `Welcome` from it, otherwise the sign-in page opens with the sidebar:
+
+```ts
+// resources/js/app.ts
+layout: (name) => (name === 'Welcome' ? null : AppLayout),
 ```
 
 The page texts come from `keycloak::messages.welcome` (ru, en), the sign-out message uses `config('app.name')`.
