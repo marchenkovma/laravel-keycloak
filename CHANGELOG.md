@@ -1,6 +1,14 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.0...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.1...HEAD)
+
+## [v0.5.1](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.0...v0.5.1) - 2026-10-16
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13. Код пакета не менялся, изменения только в документации.
+
+### Документация
+
+- README, раздел «Страница входа»: если в `resources/js/app.ts` layout по умолчанию задан для всех страниц, `Welcome` нужно исключить из него по имени, `layout: (name) => (name === 'Welcome' ? null : AppLayout)`. Иначе опубликованная страница входа открывается с боковым меню. `layout: null` внутри самой страницы не помогает: Inertia подставляет для него layout по умолчанию.
 
 ## [v0.5.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.4.0...v0.5.0) - 2026-10-15
 
