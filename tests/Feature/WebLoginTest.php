@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\Facades\Socialite;
 use Marchenkovma\LaravelKeycloak\Contracts\ResolvesKeycloakUser;
@@ -269,6 +271,17 @@ describe('logout', function () {
             ->assertSessionHas('auth_notice', 'signed_out');
 
         $this->assertGuest();
+    });
+
+    it('a guest is sent to after_logout without Keycloak, Logout fires with a null user', function () {
+        Event::fake([Logout::class]);
+
+        $this->post(route('auth.logout'))
+            ->assertRedirect(route('home'))
+            ->assertSessionHas('auth_notice', 'signed_out');
+
+        $this->assertGuest();
+        Event::assertDispatched(Logout::class, fn (Logout $event): bool => $event->user === null);
     });
 });
 

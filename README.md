@@ -63,6 +63,8 @@ Keycloak с сертификатом корпоративного CA: корне
 
 Префикс задаётся в `keycloak.web.prefix`.
 
+Выход намеренно открыт гостям, middleware `auth` на нём нет. Если сессия Laravel истекла, а SSO-сессия Keycloak жива, `auth` увёл бы человека на `auth/login` и молча впустил обратно, а в Inertia такой редирект упёрся бы в CORS. Гость просто уходит на `after_logout`, Keycloak не вызывается. Событие `Illuminate\Auth\Events\Logout` при этом приходит с `user = null`: слушатели должны это учитывать, например `$event->user?->getAuthIdentifier()`.
+
 Чтобы зарегистрировать маршруты самостоятельно, поставьте `keycloak.web.routes = false` и укажите `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (методы `login`, `callback`, `logout`). Маршрут callback назовите `auth.callback`: из него пакет берёт `redirect_uri` для Keycloak. Без такого имени используется `{prefix}/callback`.
 
 ### Настройка клиента для входа

@@ -63,6 +63,8 @@ The package registers these routes with the `web` middleware:
 
 The prefix is set in `keycloak.web.prefix`.
 
+Logout is intentionally open to guests and has no `auth` middleware. When the Laravel session has expired but the Keycloak SSO session is still alive, `auth` would send the person to `auth/login` and silently sign them back in, and under Inertia that redirect would hit CORS. A guest is simply sent to `after_logout`, Keycloak is not called. The `Illuminate\Auth\Events\Logout` event then arrives with `user = null`: listeners must handle it, for example `$event->user?->getAuthIdentifier()`.
+
 To register the routes yourself, set `keycloak.web.routes = false` and point them to `Marchenkovma\LaravelKeycloak\Http\Controllers\KeycloakController` (`login`, `callback`, `logout`). Name the callback route `auth.callback`: the package takes the `redirect_uri` for Keycloak from it. Without that name it uses `{prefix}/callback`.
 
 ### Client setup for login
