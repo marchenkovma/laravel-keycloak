@@ -1,6 +1,18 @@
 # Release Notes
 
-## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.1...HEAD)
+## [Unreleased](https://github.com/marchenkovma/laravel-keycloak/compare/v0.6.0...HEAD)
+
+## [v0.6.0](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.1...v0.6.0) - 2026-11-25
+
+Требования прежние: PHP 8.4+ с расширением openssl, Laravel 13. Несовместимых изменений нет: без `KEYCLOAK_FALLBACK_ROLE` вход работает как в v0.5.1.
+
+### Вход пользователей
+
+- Роль по умолчанию для входа без роли приложения: `KEYCLOAK_FALLBACK_ROLE` (`keycloak.web.fallback_role`). Пользователь без группы и роли клиента из `keycloak.web.roles` получает её вместо 403. Совпавшее правило важнее, пустое значение выключает настройку. `Keycloak::roleFor()` без совпадения возвращает её же. Роль получит каждый, кто может войти в клиент Keycloak, поэтому её права ограничивает проект, см. README, раздел «Роли».
+
+### Документация
+
+- README: выход гостя без middleware `auth` и событие `Logout` с `user = null` для слушателей.
 
 ## [v0.5.1](https://github.com/marchenkovma/laravel-keycloak/compare/v0.5.0...v0.5.1) - 2026-10-16
 
