@@ -45,6 +45,10 @@ KEYCLOAK_CLIENT_SECRET=
 # В production не действует, что бы ни стояло в env
 KEYCLOAK_BYPASS=false
 KEYCLOAK_BYPASS_ROLE=admin
+
+# Роль для вошедших без группы и роли клиента из keycloak.web.roles.
+# Пусто: такой вход завершается 403
+KEYCLOAK_FALLBACK_ROLE=
 ```
 
 `KEYCLOAK_BASE_URL` задаёт адрес, по которому приложение ходит в Keycloak. Он может быть внутренним.
@@ -97,7 +101,17 @@ Keycloak с сертификатом корпоративного CA: корне
 ],
 ```
 
-Если ни одно правило не совпало, вход завершается ответом 403.
+Если ни одно правило не совпало, вход завершается ответом 403. Чтобы вместо отказа выдавать ограниченную роль, задайте `fallback_role` (`KEYCLOAK_FALLBACK_ROLE`):
+
+```php
+// config/keycloak.php
+'fallback_role' => env('KEYCLOAK_FALLBACK_ROLE'), // например demo
+```
+
+Совпавшее правило всегда важнее `fallback_role`. Роль не обязана быть ключом в `roles`, пустое значение выключает настройку. `Keycloak::roleFor()` без совпадения тоже возвращает её. Bypass она не затрагивает, у него своя `bypass_role`.
+
+> [!WARNING]
+> `fallback_role` получит **каждый**, кто может войти в клиент Keycloak. Обычно это все пользователи realm. Права этой роли ограничивает проект: гейты, политики, `keycloak.role:<роли>` на маршрутах. Привилегированную роль в `fallback_role` ставить нельзя. Учтите, что `keycloak.role` без аргументов пускает и её.
 
 ```php
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;

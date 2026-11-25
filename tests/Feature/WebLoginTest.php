@@ -152,6 +152,45 @@ describe('callback', function () {
         expect(User::count())->toBe(0);
     });
 
+    it('without application groups and roles signs in with fallback_role', function () {
+        config(['keycloak.web.fallback_role' => 'demo']);
+        fakeKeycloakUser(groups: ['/some/other/group'], roles: ['user']);
+
+        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+
+        $this->assertAuthenticated();
+        expect(Keycloak::role())->toBe('demo')
+            ->and(Keycloak::idToken())->toBe('fake-id-token')
+            ->and(User::sole()->username)->toBe('ivanov');
+    });
+
+    it('an empty fallback_role keeps the 403, no user created', function (?string $fallbackRole) {
+        config(['keycloak.web.fallback_role' => $fallbackRole]);
+        fakeKeycloakUser(groups: ['/some/other/group']);
+
+        $this->get(route('auth.callback').'?code=x&state=y')
+            ->assertForbidden()
+            ->assertSee(__('keycloak::messages.denied'));
+
+        $this->assertGuest();
+        expect(User::count())->toBe(0);
+    })->with([
+        'null' => [null],
+        'empty string from .env' => [''],
+    ]);
+
+    it('a matching group or client role wins over fallback_role', function (array $user, string $role) {
+        config(['keycloak.web.fallback_role' => 'demo']);
+        fakeKeycloakUser(...$user);
+
+        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+
+        expect(Keycloak::role())->toBe($role);
+    })->with([
+        'group' => [['groups' => ['/apps/my-app/user']], 'user'],
+        'client role' => [['resourceAccess' => ['my-app' => ['roles' => ['admin']]]], 'admin'],
+    ]);
+
     it('takes the role from resource_access of the configured client', function () {
         fakeKeycloakUser(resourceAccess: ['my-app' => ['roles' => ['admin']], 'account' => ['roles' => ['view-profile']]]);
 
@@ -335,6 +374,24 @@ describe('role from claims', function () {
         'other group and role' => [['groups' => ['/some/other/group'], 'roles' => ['user']]],
         'no claims' => [[]],
     ]);
+
+    it('returns fallback_role when nothing matches', function (array $claims) {
+        config(['keycloak.web.fallback_role' => 'demo']);
+
+        expect(Keycloak::roleFor($claims))->toBe('demo');
+    })->with([
+        'other group and role' => [['groups' => ['/some/other/group'], 'roles' => ['user']]],
+        'no claims' => [[]],
+    ]);
+
+    it('returns null without a match when fallback_role is not set', function (?string $fallbackRole) {
+        config(['keycloak.web.fallback_role' => $fallbackRole]);
+
+        expect(Keycloak::roleFor([]))->toBeNull();
+    })->with([
+        'null' => [null],
+        'empty string from .env' => [''],
+    ]);
 });
 
 describe('role in the session', function () {
@@ -354,6 +411,16 @@ describe('role in the session', function () {
 
     it('keycloak.role without arguments allows any application role', function () {
         $this->actingAsKeycloakUser(keycloakTestUser(), 'user')->get('/any-role')->assertOk();
+    });
+
+    it('keycloak.role allows the fallback role, keycloak.role:admin rejects it', function () {
+        config(['keycloak.web.fallback_role' => 'demo']);
+        fakeKeycloakUser();
+
+        $this->get(route('auth.callback').'?code=x&state=y')->assertRedirect(route('home'));
+
+        $this->get('/any-role')->assertOk();
+        $this->get('/admin-only')->assertForbidden();
     });
 
     it('keycloak.role without a role in the session answers 403', function () {

@@ -45,6 +45,10 @@ KEYCLOAK_CLIENT_SECRET=
 # Ignored in production whatever the env says
 KEYCLOAK_BYPASS=false
 KEYCLOAK_BYPASS_ROLE=admin
+
+# Role for signed-in users without a group or client role from keycloak.web.roles.
+# Empty: such a login ends with 403
+KEYCLOAK_FALLBACK_ROLE=
 ```
 
 `KEYCLOAK_BASE_URL` is the address the application uses to reach Keycloak. It may be an internal one.
@@ -97,7 +101,17 @@ The application role is resolved at login and kept in the session until logout. 
 ],
 ```
 
-If no rule matches, login ends with a 403 response.
+If no rule matches, login ends with a 403 response. To grant a limited role instead of refusing, set `fallback_role` (`KEYCLOAK_FALLBACK_ROLE`):
+
+```php
+// config/keycloak.php
+'fallback_role' => env('KEYCLOAK_FALLBACK_ROLE'), // for example demo
+```
+
+A matching rule always wins over `fallback_role`. The role does not have to be a key in `roles`, an empty value turns the setting off. `Keycloak::roleFor()` returns it too when nothing matches. Bypass is not affected, it has its own `bypass_role`.
+
+> [!WARNING]
+> **Everyone** who can sign in to the Keycloak client gets `fallback_role`. Usually that is every user of the realm. The application limits what this role can do: gates, policies, `keycloak.role:<roles>` on routes. Never put a privileged role into `fallback_role`. Note that `keycloak.role` without arguments lets it through as well.
 
 ```php
 use Marchenkovma\LaravelKeycloak\Facades\Keycloak;

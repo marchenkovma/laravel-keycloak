@@ -26,6 +26,11 @@ return [
             // 'user' => ['groups' => ['/apps/my-app/user']],
         ],
 
+        // Роль для тех, кто вошёл, но не совпал ни с одним правилом из roles.
+        // Её получит каждый, кто может войти в клиент Keycloak: только
+        // ограниченная роль, не привилегированная. Пусто: 403, как раньше
+        'fallback_role' => env('KEYCLOAK_FALLBACK_ROLE'),
+
         'redirects' => [
             'after_login' => 'home',  // имя маршрута, intended() поверх
             'after_logout' => 'home',

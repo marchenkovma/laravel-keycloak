@@ -72,7 +72,8 @@ class Keycloak
 
     /**
      * Роль по claims userinfo: группы (claim `groups`) и роли клиента
-     * keycloak.client_id, первая совпавшая из keycloak.web.roles, иначе null
+     * keycloak.client_id, первая совпавшая из keycloak.web.roles. Без
+     * совпадения keycloak.web.fallback_role, если она задана, иначе null
      * (нет доступа).
      *
      * @param  array<mixed>  $claims
@@ -101,7 +102,10 @@ class Keycloak
             }
         }
 
-        return null;
+        // Пустая строка (KEYCLOAK_FALLBACK_ROLE=) значит «выключено», как null
+        $fallbackRole = $this->config->get('keycloak.web.fallback_role');
+
+        return is_string($fallbackRole) && $fallbackRole !== '' ? $fallbackRole : null;
     }
 
     /**
